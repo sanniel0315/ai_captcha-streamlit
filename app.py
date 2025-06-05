@@ -253,18 +253,11 @@ class CRNNPredictor:
         self.is_loaded = False
         self.model_info = {}
 
-    def load_model(self, model_path: str = None):
+    def load_model(self, model_path: str):
         """載入CRNN模型"""
         try:
-            # 如果未指定路徑，嘗試所有可能的路徑
-            if model_path is None:
-                for path in MODEL_PATHS:
-                    if os.path.exists(path):
-                        model_path = path
-                        break
-            
-            if model_path is None or not os.path.exists(model_path):
-                print(f"❌ 找不到模型文件")
+            if not os.path.exists(model_path):
+                print(f"❌ 模型文件不存在: {model_path}")
                 return False
 
             print(f"🔄 正在載入模型: {model_path}")
@@ -360,7 +353,34 @@ class CRNNPredictor:
             print(f"❌ 預測失敗: {e}")
             return "", 0.0
 
-def check_project_files():
+def check_model_file(model_path):
+    """檢查模型檔案的詳細信息"""
+    try:
+        if not os.path.exists(model_path):
+            return {"status": "error", "message": f"檔案不存在: {model_path}"}
+        
+        file_size = os.path.getsize(model_path) / (1024*1024)
+        
+        # 嘗試載入並檢查checkpoint內容
+        checkpoint = torch.load(model_path, map_location='cpu')
+        
+        info = {
+            "status": "success",
+            "file_size_mb": file_size,
+            "checkpoint_keys": list(checkpoint.keys()),
+            "has_config": "config" in checkpoint,
+            "has_model_state": "model_state_dict" in checkpoint or "state_dict" in checkpoint,
+            "epoch": checkpoint.get('epoch', 'unknown'),
+            "accuracy": checkpoint.get('best_val_captcha_acc', 0)
+        }
+        
+        if 'config' in checkpoint:
+            info['config'] = checkpoint['config']
+        
+        return info
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
     """檢查項目中的重要檔案"""
     current_dir = Path(".")
     
@@ -401,9 +421,22 @@ def init_session_state():
 def load_crnn_model():
     """載入並緩存CRNN模型"""
     predictor = CRNNPredictor()
-    if predictor.load_model():
+    
+    model_files = ['best_crnn_captcha_model.pth', 'model.pth', 'crnn_model.pth']
+    model_path = None
+    
+    for file in model_files:
+        if os.path.exists(file):
+            model_path = file
+            break
+    
+    if model_path is None:
+        return None
+    
+    if predictor.load_model(model_path):
         return predictor
-    return None
+    else:
+        return None
 
 def load_images_from_folder(folder_path: str):
     """從資料夾載入圖片"""
@@ -549,7 +582,8 @@ def main():
         """, unsafe_allow_html=True)
 
         # 載入模型
-        predictor = load_crnn_model()
+        with st.spinner("🔄 正在載入CRNN模型..."):
+            predictor = load_crnn_model()
         
         # 檢查項目檔案
         model_files, image_folders = check_project_files()
@@ -565,7 +599,8 @@ def main():
             if model_files:
                 st.success(f"✅ 找到 {len(model_files)} 個模型檔案")
                 for model_file in model_files:
-                    st.text(f"📦 {model_file}")
+                    file_size = os.path.getsize(model_file) / (1024*1024)
+                    st.text(f"📦 {model_file} ({file_size:.2f} MB)")
             else:
                 st.error("❌ 未找到模型檔案")
             
