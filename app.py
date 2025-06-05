@@ -353,34 +353,7 @@ class CRNNPredictor:
             print(f"❌ 預測失敗: {e}")
             return "", 0.0
 
-def check_model_file(model_path):
-    """檢查模型檔案的詳細信息"""
-    try:
-        if not os.path.exists(model_path):
-            return {"status": "error", "message": f"檔案不存在: {model_path}"}
-        
-        file_size = os.path.getsize(model_path) / (1024*1024)
-        
-        # 嘗試載入並檢查checkpoint內容
-        checkpoint = torch.load(model_path, map_location='cpu')
-        
-        info = {
-            "status": "success",
-            "file_size_mb": file_size,
-            "checkpoint_keys": list(checkpoint.keys()),
-            "has_config": "config" in checkpoint,
-            "has_model_state": "model_state_dict" in checkpoint or "state_dict" in checkpoint,
-            "epoch": checkpoint.get('epoch', 'unknown'),
-            "accuracy": checkpoint.get('best_val_captcha_acc', 0)
-        }
-        
-        if 'config' in checkpoint:
-            info['config'] = checkpoint['config']
-        
-        return info
-        
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+def check_project_files():
     """檢查項目中的重要檔案"""
     current_dir = Path(".")
     
@@ -662,6 +635,9 @@ def main():
 def folder_batch_processing(predictor):
     """資料夾批量處理功能"""
     st.markdown("## 📁 資料夾批量處理")
+    
+    # 檢查項目檔案
+    model_files, image_folders = check_project_files()
     
     # 路徑設定區域 - 基於實際存在的資料夾
     st.markdown("### 📂 資料夾路徑設定")
