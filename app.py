@@ -92,53 +92,53 @@ DEFAULT_CONFIG = {
 CHAR_TO_IDX = {char: idx for idx, char in enumerate(CHARACTERS)}
 IDX_TO_CHAR = {idx: char for idx, char in enumerate(CHARACTERS)}
 
-# 高級自定義CSS樣式 - 新潮配色版
+# 高級自定義CSS樣式 - 清新綠色系
 st.markdown("""
 <style>
-    /* 主體背景 - 深邃漸變 */
+    /* 主體背景 - 深邃藍綠漸變 */
     .main .block-container {
         padding-top: 1rem;
         padding-bottom: 1rem;
-        background: linear-gradient(135deg, #0f0f23, #1a1a2e, #16213e);
+        background: linear-gradient(135deg, #0f1419, #1a2332, #16213e);
         min-height: 100vh;
     }
     
-    /* 標題樣式 - 霓虹青藍 */
+    /* 標題樣式 - 清新青藍 */
     .main-title {
-        background: linear-gradient(135deg, #00d4ff, #0099cc, #0066aa);
+        background: linear-gradient(135deg, #22d3ee, #06b6d4, #0891b2);
         padding: 2rem;
         border-radius: 20px;
         text-align: center;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
-        color: #ffffff;
-        border: 1px solid rgba(0, 212, 255, 0.5);
+        box-shadow: 0 10px 30px rgba(34, 211, 238, 0.3);
+        color: #0f172a;
+        border: 1px solid rgba(34, 211, 238, 0.5);
         backdrop-filter: blur(10px);
     }
     
-    /* AI狀態卡片 - 霓虹綠 */
+    /* AI狀態卡片 - 清新綠 */
     .ai-status-card {
-        background: linear-gradient(135deg, #00ff87, #00cc6a, #00994f);
-        color: #0f0f23;
+        background: linear-gradient(135deg, #22c55e, #16a34a, #15803d);
+        color: #0f172a;
         padding: 1rem;
         border-radius: 15px;
         text-align: center;
         font-weight: bold;
         margin: 1rem 0;
-        box-shadow: 0 8px 25px rgba(0, 255, 135, 0.3);
-        border: 1px solid rgba(0, 255, 135, 0.5);
+        box-shadow: 0 8px 25px rgba(34, 197, 94, 0.3);
+        border: 1px solid rgba(34, 197, 94, 0.5);
     }
     
     .ai-status-error {
-        background: linear-gradient(135deg, #ff3366, #cc1144, #990022);
+        background: linear-gradient(135deg, #ef4444, #dc2626, #b91c1c);
         color: #ffffff;
-        box-shadow: 0 8px 25px rgba(255, 51, 102, 0.3);
-        border: 1px solid rgba(255, 51, 102, 0.5);
+        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+        border: 1px solid rgba(239, 68, 68, 0.5);
     }
     
-    /* AI結果顯示 - 霓虹紫 */
+    /* AI結果顯示 - 薄荷紫 */
     .ai-result {
-        background: linear-gradient(135deg, #8b5cf6, #7c3aed, #6d28d9);
+        background: linear-gradient(135deg, #a855f7, #9333ea, #7c3aed);
         padding: 1.5rem;
         border-radius: 15px;
         color: white;
@@ -146,105 +146,118 @@ st.markdown("""
         text-align: center;
         margin: 1rem 0;
         font-size: 1.2rem;
-        box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
-        border: 1px solid rgba(139, 92, 246, 0.6);
+        box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4);
+        border: 1px solid rgba(168, 85, 247, 0.6);
     }
     
-    /* 成功結果 - 霓虹橙 */
+    /* 成功結果 - 翡翠綠 */
     .success-result {
-        background: linear-gradient(135deg, #ff6b35, #e55100, #cc4400);
+        background: linear-gradient(135deg, #10b981, #059669, #047857);
         padding: 1rem;
         border-radius: 15px;
         color: white;
         font-weight: bold;
         text-align: center;
         margin: 1rem 0;
-        box-shadow: 0 8px 25px rgba(255, 107, 53, 0.4);
-        border: 1px solid rgba(255, 107, 53, 0.6);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        border: 1px solid rgba(16, 185, 129, 0.6);
     }
     
-    /* 統計卡片 - 霓虹青 */
+    /* 統計卡片 - 淺藍綠 */
     .metric-card {
-        background: linear-gradient(135deg, #06ffa5, #00d4ff, #0099cc);
-        color: #0f0f23;
+        background: linear-gradient(135deg, #0dd5e9, #22d3ee, #06b6d4);
+        color: #0f172a;
         padding: 1rem;
         border-radius: 15px;
         text-align: center;
         margin: 0.5rem;
-        box-shadow: 0 6px 20px rgba(6, 255, 165, 0.3);
-        border: 1px solid rgba(6, 255, 165, 0.5);
+        box-shadow: 0 6px 20px rgba(13, 213, 233, 0.3);
+        border: 1px solid rgba(13, 213, 233, 0.5);
     }
     
     /* Streamlit元素優化 */
     .stMetric {
-        background: linear-gradient(135deg, #1a1a2e, #16213e) !important;
+        background: linear-gradient(135deg, #1e293b, #334155) !important;
         padding: 1rem !important;
         border-radius: 15px !important;
-        border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        border: 1px solid rgba(34, 211, 238, 0.3) !important;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
     }
     
     .stMetric > div {
-        color: #00d4ff !important;
+        color: #22d3ee !important;
     }
     
     .stMetric [data-testid="metric-value"] {
-        color: #06ffa5 !important;
+        color: #22c55e !important;
         font-weight: bold !important;
     }
     
     /* 按鈕樣式 */
     .stButton > button {
-        background: linear-gradient(135deg, #00d4ff, #0099cc) !important;
-        color: #0f0f23 !important;
+        background: linear-gradient(135deg, #22d3ee, #06b6d4) !important;
+        color: #0f172a !important;
         border: none !important;
         border-radius: 10px !important;
         font-weight: bold !important;
         transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3) !important;
+        box-shadow: 0 4px 15px rgba(34, 211, 238, 0.3) !important;
     }
     
     .stButton > button:hover {
-        background: linear-gradient(135deg, #06ffa5, #00ff87) !important;
+        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
         transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(6, 255, 165, 0.4) !important;
+        box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4) !important;
     }
     
     /* 主要按鈕樣式 */
     .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+        background: linear-gradient(135deg, #a855f7, #9333ea) !important;
         color: white !important;
-        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4) !important;
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4) !important;
     }
     
     .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #ff6b35, #e55100) !important;
-        box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5) !important;
+        background: linear-gradient(135deg, #10b981, #059669) !important;
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5) !important;
+    }
+    
+    /* 次要按鈕樣式 */
+    .stButton > button[kind="secondary"] {
+        background: linear-gradient(135deg, #0dd5e9, #22d3ee) !important;
+        color: #0f172a !important;
+        box-shadow: 0 4px 15px rgba(13, 213, 233, 0.4) !important;
+    }
+    
+    .stButton > button[kind="secondary"]:hover {
+        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+        color: white !important;
+        box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5) !important;
     }
     
     /* 輸入框樣式 */
     .stTextInput > div > div > input {
-        background: rgba(26, 26, 46, 0.8) !important;
-        border: 2px solid rgba(0, 212, 255, 0.5) !important;
+        background: rgba(30, 41, 59, 0.8) !important;
+        border: 2px solid rgba(34, 211, 238, 0.5) !important;
         border-radius: 10px !important;
-        color: #00d4ff !important;
+        color: #22d3ee !important;
         font-weight: bold !important;
     }
     
     .stTextInput > div > div > input:focus {
-        border-color: #06ffa5 !important;
-        box-shadow: 0 0 15px rgba(6, 255, 165, 0.5) !important;
+        border-color: #22c55e !important;
+        box-shadow: 0 0 15px rgba(34, 197, 94, 0.5) !important;
     }
     
     /* 進度條 */
     .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #ff3366, #ff6b35, #06ffa5, #00d4ff) !important;
+        background: linear-gradient(90deg, #22c55e, #0dd5e9, #a855f7, #22d3ee) !important;
         border-radius: 10px !important;
     }
     
     /* 側邊欄樣式 */
     .css-1d391kg {
-        background: linear-gradient(180deg, #1a1a2e, #0f0f23) !important;
+        background: linear-gradient(180deg, #1e293b, #0f172a) !important;
     }
     
     /* 隱藏Streamlit默認元素 */
@@ -257,34 +270,34 @@ st.markdown("""
     .image-container {
         text-align: center;
         padding: 1rem;
-        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        background: linear-gradient(135deg, #1e293b, #334155);
         border-radius: 15px;
         margin: 1rem 0;
-        border: 1px solid rgba(0, 212, 255, 0.3);
+        border: 1px solid rgba(34, 211, 238, 0.3);
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     }
     
     /* 列表項目樣式 */
     .image-item {
-        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        background: linear-gradient(135deg, #1e293b, #334155);
         padding: 0.5rem;
         margin: 0.2rem 0;
         border-radius: 10px;
-        border-left: 4px solid #00d4ff;
+        border-left: 4px solid #22d3ee;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         transition: all 0.3s ease;
     }
     
     .image-item.modified {
-        border-left-color: #06ffa5;
-        background: linear-gradient(135deg, #0d2818, #1a2e1a);
-        box-shadow: 0 2px 10px rgba(6, 255, 165, 0.2);
+        border-left-color: #22c55e;
+        background: linear-gradient(135deg, #0f2317, #1a2e1f);
+        box-shadow: 0 2px 10px rgba(34, 197, 94, 0.2);
     }
     
     .image-item.current {
-        border-left-color: #ff6b35;
-        background: linear-gradient(135deg, #2e1a0d, #2e2a1a);
-        box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+        border-left-color: #a855f7;
+        background: linear-gradient(135deg, #2e1a3f, #3d2454);
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
     }
     
     /* 文字顏色優化 */
@@ -293,45 +306,45 @@ st.markdown("""
     }
     
     h1, h2, h3, h4, h5, h6 {
-        color: #00d4ff !important;
+        color: #22d3ee !important;
     }
     
     /* 選擇框樣式 */
     .stSelectbox > div > div {
-        background: rgba(26, 26, 46, 0.8) !important;
-        border: 2px solid rgba(0, 212, 255, 0.5) !important;
+        background: rgba(30, 41, 59, 0.8) !important;
+        border: 2px solid rgba(34, 211, 238, 0.5) !important;
         border-radius: 10px !important;
     }
     
     /* 檔案上傳器樣式 */
     .stFileUploader > div {
-        background: linear-gradient(135deg, #1a1a2e, #16213e) !important;
-        border: 2px dashed rgba(0, 212, 255, 0.5) !important;
+        background: linear-gradient(135deg, #1e293b, #334155) !important;
+        border: 2px dashed rgba(34, 211, 238, 0.5) !important;
         border-radius: 15px !important;
     }
     
     /* 資訊框樣式 */
     .stInfo {
-        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(6, 255, 165, 0.1)) !important;
-        border-left: 4px solid #00d4ff !important;
+        background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(13, 213, 233, 0.1)) !important;
+        border-left: 4px solid #22d3ee !important;
         border-radius: 10px !important;
     }
     
     .stSuccess {
-        background: linear-gradient(135deg, rgba(6, 255, 165, 0.1), rgba(0, 255, 135, 0.1)) !important;
-        border-left: 4px solid #06ffa5 !important;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.1)) !important;
+        border-left: 4px solid #22c55e !important;
         border-radius: 10px !important;
     }
     
     .stError {
-        background: linear-gradient(135deg, rgba(255, 51, 102, 0.1), rgba(255, 107, 53, 0.1)) !important;
-        border-left: 4px solid #ff3366 !important;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1)) !important;
+        border-left: 4px solid #ef4444 !important;
         border-radius: 10px !important;
     }
     
     .stWarning {
-        background: linear-gradient(135deg, rgba(255, 107, 53, 0.1), rgba(255, 185, 0, 0.1)) !important;
-        border-left: 4px solid #ff6b35 !important;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1)) !important;
+        border-left: 4px solid #f59e0b !important;
         border-radius: 10px !important;
     }
     
@@ -339,9 +352,25 @@ st.markdown("""
     hr {
         border: none !important;
         height: 2px !important;
-        background: linear-gradient(90deg, #00d4ff, #06ffa5, #8b5cf6) !important;
+        background: linear-gradient(90deg, #22d3ee, #22c55e, #a855f7) !important;
         margin: 2rem 0 !important;
         border-radius: 1px !important;
+    }
+    
+    /* Radio按鈕優化 */
+    .stRadio > div {
+        background: rgba(30, 41, 59, 0.3) !important;
+        border-radius: 10px !important;
+        padding: 0.5rem !important;
+    }
+    
+    /* 改進側邊欄文字可讀性 */
+    .css-1d391kg .stMarkdown {
+        color: #cbd5e1 !important;
+    }
+    
+    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
+        color: #22d3ee !important;
     }
 </style>
 """, unsafe_allow_html=True)
