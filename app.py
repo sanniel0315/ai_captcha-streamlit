@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Streamlit + CRNN模型整合 - 自動驗證碼識別工具 """
+"""Streamlit + CRNN模型整合 - 自動驗證碼識別工具 (參照Flask版本功能)"""
 
 import streamlit as st
 import torch
@@ -62,16 +62,16 @@ if not check_streamlit_context():
 
 # 頁面配置
 st.set_page_config(
-    page_title="AI驗證碼識別工具",
+    page_title="🎯 AI驗證碼識別工具",
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 模型配置 - 參照Flask版本
+# 模型配置 - 參照Flask版本，根據項目結構調整
 MODEL_PATHS = [
+    "best_crnn_captcha_model.pth",  # 主目錄中的模型檔案
     r"C:\Users\User\Desktop\Python3.8\02_emnist\trained_models\best_crnn_captcha_model.pth",
-    "best_crnn_captcha_model.pth", 
     "model.pth", 
     "crnn_model.pth"
 ]
@@ -360,7 +360,25 @@ class CRNNPredictor:
             print(f"❌ 預測失敗: {e}")
             return "", 0.0
 
-# 安全的session state初始化
+def check_project_files():
+    """檢查項目中的重要檔案"""
+    current_dir = Path(".")
+    
+    # 檢查模型檔案
+    model_files = []
+    for model_path in MODEL_PATHS:
+        if Path(model_path).exists():
+            model_files.append(model_path)
+    
+    # 檢查圖片資料夾
+    image_folders = []
+    for item in current_dir.iterdir():
+        if item.is_dir() and not item.name.startswith('.'):
+            png_count = len(list(item.glob('*.png')))
+            if png_count > 0:
+                image_folders.append(f"{item.name} ({png_count} PNG檔案)")
+    
+    return model_files, image_folders
 def init_session_state():
     """初始化session state變量"""
     defaults = {
@@ -371,7 +389,7 @@ def init_session_state():
         'modified_count': 0,
         'modified_files': set(),
         'ai_accurate_count': 0,
-        'folder_path': r"C:\Users\User\Desktop\Python3.8\02_emnist\debug_captchas_augmented_all_split\test"
+        'folder_path': "massive_real_captchas"  # 根據您的項目結構調整預設路徑
     }
     
     for key, default_value in defaults.items():
@@ -525,16 +543,39 @@ def main():
         st.markdown("""
         <div class="main-title">
             <h1>🎯 AI驗證碼識別工具 - CRNN自動識別版</h1>
-            <p>使用CRNN模型自動識別4位大寫英文字母驗證碼 (參照Flask版本功能)</p>
+            <p>使用CRNN模型自動識別4位大寫英文字母驗證碼</p>
+            <p style="font-size: 0.9rem; opacity: 0.8;">當前項目: ai_captcha-streamlit</p>
         </div>
         """, unsafe_allow_html=True)
 
         # 載入模型
         predictor = load_crnn_model()
         
+        # 檢查項目檔案
+        model_files, image_folders = check_project_files()
+        
         # 側邊欄
         with st.sidebar:
             st.markdown("### ⚙️ 控制面板")
+            
+            # 項目檔案狀態
+            st.markdown("### 📋 項目檔案狀態")
+            
+            # 模型檔案狀態
+            if model_files:
+                st.success(f"✅ 找到 {len(model_files)} 個模型檔案")
+                for model_file in model_files:
+                    st.text(f"📦 {model_file}")
+            else:
+                st.error("❌ 未找到模型檔案")
+            
+            # 圖片資料夾狀態
+            if image_folders:
+                st.success(f"✅ 找到 {len(image_folders)} 個圖片資料夾")
+                for folder in image_folders:
+                    st.text(f"📁 {folder}")
+            else:
+                st.warning("⚠️ 未找到包含PNG檔案的資料夾")
             
             # 模型狀態
             if predictor is not None:
@@ -587,22 +628,34 @@ def folder_batch_processing(predictor):
     """資料夾批量處理功能"""
     st.markdown("## 📁 資料夾批量處理")
     
-    # 路徑設定區域
+    # 路徑設定區域 - 基於實際存在的資料夾
     st.markdown("### 📂 資料夾路徑設定")
     
+    # 顯示可用的圖片資料夾
+    if image_folders:
+        st.markdown("#### 🎯 專案中可用的圖片資料夾:")
+        cols = st.columns(min(len(image_folders), 4))
+        for i, folder_info in enumerate(image_folders):
+            folder_name = folder_info.split(' (')[0]  # 取得資料夾名稱
+            with cols[i % 4]:
+                if st.button(f"📁 {folder_name}", help=f"選擇: {folder_info}", key=f"proj_folder_{i}"):
+                    st.session_state.folder_path = folder_name
+    
+    # 其他常用路徑
+    st.markdown("#### 🔗 其他常用路徑:")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
+        if st.button("📁 massive_real_captchas", help="設定為項目中的massive_real_captchas資料夾"):
+            st.session_state.folder_path = "massive_real_captchas"
+    
+    with col2:
         if st.button("🖥️ 桌面", help="設定為桌面路徑"):
             st.session_state.folder_path = r"C:\Users\User\Desktop"
     
-    with col2:
+    with col3:
         if st.button("📥 下載", help="設定為下載資料夾"):
             st.session_state.folder_path = r"C:\Users\User\Downloads"
-    
-    with col3:
-        if st.button("🎯 預設偵錯", help="設定為預設偵錯路徑"):
-            st.session_state.folder_path = r"C:\Users\User\Desktop\Python3.8\02_emnist\debug_captchas_adaptive_captcha_paper"
     
     with col4:
         if st.button("🧪 測試數據", help="設定為測試數據路徑"):
