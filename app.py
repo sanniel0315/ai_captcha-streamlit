@@ -1,76 +1,44 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Streamlit + CRNN模型整合 - 自動驗證碼識別工具 (參照Flask版本功能)"""
+"""Streamlit + CRNN模型整合 - 專業驗證碼識別工具"""
 
 import streamlit as st
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
-from PIL import Image
 import os
+import warnings
+from PIL import Image
 import re
 import string
 import time
 from pathlib import Path
-import warnings
 from typing import List, Tuple, Dict, Optional
-import sys
-import subprocess
 
-# 抑制警告
+# 環境設定
+os.environ['TORCH_DISABLE_EXTENSIONS'] = '1'
 warnings.filterwarnings('ignore')
-
-# 檢查是否在正確的Streamlit環境中運行
-def check_streamlit_context():
-    """檢查是否在正確的Streamlit環境中運行"""
-    try:
-        # 檢查是否存在streamlit的運行上下文
-        import streamlit.runtime.scriptrunner.script_run_context as script_run_context
-        ctx = script_run_context.get_script_run_ctx()
-        return ctx is not None
-    except:
-        return False
-
-# 如果不在Streamlit上下文中運行，提供友好的錯誤信息並嘗試自動啟動
-if not check_streamlit_context():
-    print("\n" + "="*60)
-    print("🚨 請使用正確的方式運行此Streamlit應用！")
-    print("="*60)
-    print("\n正確的運行方式：")
-    print("1. 開啟命令提示符或PowerShell")
-    print(f"2. 切換到應用目錄：")
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    print(f"   cd {current_dir}")
-    print("3. 運行以下命令：")
-    print("   streamlit run app.py")
-    print(f"\n或者直接運行：")
-    print(f"   streamlit run {os.path.abspath(__file__)}")
-    print("\n" + "="*60)
-    print("💡 提示：不要直接用python執行此文件！")
-    print("="*60)
-    
-    # 嘗試自動啟動streamlit
-    try:
-        current_file = os.path.abspath(__file__)
-        print("🚀 正在嘗試自動啟動Streamlit...")
-        subprocess.run([sys.executable, "-m", "streamlit", "run", current_file])
-    except Exception as e:
-        print(f"❌ 自動啟動失敗：{e}")
-        print("請手動使用上述命令運行。")
-    
-    sys.exit(1)
 
 # 頁面配置
 st.set_page_config(
     page_title="🎯 AI驗證碼識別工具",
     page_icon="🎯",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# 模型配置 - 參照Flask版本，根據項目結構調整
+# 延遲導入 PyTorch
+@st.cache_resource
+def import_torch_modules():
+    try:
+        import torch
+        import torch.nn as nn
+        import torchvision.transforms as transforms
+        return torch, nn, transforms
+    except Exception as e:
+        st.error(f"PyTorch 導入失敗: {e}")
+        return None, None, None
+
+# 模型配置
 MODEL_PATHS = [
-    "best_crnn_captcha_model.pth",  # 主目錄中的模型檔案
+    "best_crnn_captcha_model.pth",
     r"C:\Users\User\Desktop\Python3.8\02_emnist\trained_models\best_crnn_captcha_model.pth",
     "model.pth", 
     "crnn_model.pth"
@@ -92,294 +60,395 @@ DEFAULT_CONFIG = {
 CHAR_TO_IDX = {char: idx for idx, char in enumerate(CHARACTERS)}
 IDX_TO_CHAR = {idx: char for idx, char in enumerate(CHARACTERS)}
 
-# 高級自定義CSS樣式 - 清新綠色系
+# 專業界面CSS樣式
 st.markdown("""
 <style>
-    /* 主體背景 - 深邃藍綠漸變 */
     .main .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-        background: linear-gradient(135deg, #0f1419, #1a2332, #16213e);
-        min-height: 100vh;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+        background: #1e2347;
     }
     
-    /* 標題樣式 - 清新青藍 */
-    .main-title {
-        background: linear-gradient(135deg, #22d3ee, #06b6d4, #0891b2);
-        padding: 2rem;
-        border-radius: 20px;
-        text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(34, 211, 238, 0.3);
-        color: #0f172a;
-        border: 1px solid rgba(34, 211, 238, 0.5);
-        backdrop-filter: blur(10px);
+    .stApp {
+        background: #1e2347;
     }
     
-    /* AI狀態卡片 - 清新綠 */
-    .ai-status-card {
-        background: linear-gradient(135deg, #22c55e, #16a34a, #15803d);
-        color: #0f172a;
-        padding: 1rem;
-        border-radius: 15px;
-        text-align: center;
-        font-weight: bold;
-        margin: 1rem 0;
-        box-shadow: 0 8px 25px rgba(34, 197, 94, 0.3);
-        border: 1px solid rgba(34, 197, 94, 0.5);
-    }
-    
-    .ai-status-error {
-        background: linear-gradient(135deg, #ef4444, #dc2626, #b91c1c);
-        color: #ffffff;
-        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
-        border: 1px solid rgba(239, 68, 68, 0.5);
-    }
-    
-    /* AI結果顯示 - 薄荷紫 */
-    .ai-result {
-        background: linear-gradient(135deg, #a855f7, #9333ea, #7c3aed);
-        padding: 1.5rem;
-        border-radius: 15px;
-        color: white;
-        font-weight: bold;
-        text-align: center;
-        margin: 1rem 0;
-        font-size: 1.2rem;
-        box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4);
-        border: 1px solid rgba(168, 85, 247, 0.6);
-    }
-    
-    /* 成功結果 - 翡翠綠 */
-    .success-result {
-        background: linear-gradient(135deg, #10b981, #059669, #047857);
-        padding: 1rem;
-        border-radius: 15px;
-        color: white;
-        font-weight: bold;
-        text-align: center;
-        margin: 1rem 0;
-        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
-        border: 1px solid rgba(16, 185, 129, 0.6);
-    }
-    
-    /* 統計卡片 - 淺藍綠 */
-    .metric-card {
-        background: linear-gradient(135deg, #0dd5e9, #22d3ee, #06b6d4);
-        color: #0f172a;
-        padding: 1rem;
-        border-radius: 15px;
-        text-align: center;
-        margin: 0.5rem;
-        box-shadow: 0 6px 20px rgba(13, 213, 233, 0.3);
-        border: 1px solid rgba(13, 213, 233, 0.5);
-    }
-    
-    /* Streamlit元素優化 */
-    .stMetric {
-        background: linear-gradient(135deg, #1e293b, #334155) !important;
-        padding: 1rem !important;
-        border-radius: 15px !important;
-        border: 1px solid rgba(34, 211, 238, 0.3) !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-    }
-    
-    .stMetric > div {
-        color: #22d3ee !important;
-    }
-    
-    .stMetric [data-testid="metric-value"] {
-        color: #22c55e !important;
-        font-weight: bold !important;
-    }
-    
-    /* 按鈕樣式 */
-    .stButton > button {
-        background: linear-gradient(135deg, #22d3ee, #06b6d4) !important;
-        color: #0f172a !important;
-        border: none !important;
-        border-radius: 10px !important;
-        font-weight: bold !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(34, 211, 238, 0.3) !important;
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4) !important;
-    }
-    
-    /* 主要按鈕樣式 */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #a855f7, #9333ea) !important;
-        color: white !important;
-        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4) !important;
-    }
-    
-    .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #10b981, #059669) !important;
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5) !important;
-    }
-    
-    /* 次要按鈕樣式 */
-    .stButton > button[kind="secondary"] {
-        background: linear-gradient(135deg, #0dd5e9, #22d3ee) !important;
-        color: #0f172a !important;
-        box-shadow: 0 4px 15px rgba(13, 213, 233, 0.4) !important;
-    }
-    
-    .stButton > button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
-        color: white !important;
-        box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5) !important;
-    }
-    
-    /* 輸入框樣式 */
-    .stTextInput > div > div > input {
-        background: rgba(30, 41, 59, 0.8) !important;
-        border: 2px solid rgba(34, 211, 238, 0.5) !important;
-        border-radius: 10px !important;
-        color: #22d3ee !important;
-        font-weight: bold !important;
-    }
-    
-    .stTextInput > div > div > input:focus {
-        border-color: #22c55e !important;
-        box-shadow: 0 0 15px rgba(34, 197, 94, 0.5) !important;
-    }
-    
-    /* 進度條 */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #22c55e, #0dd5e9, #a855f7, #22d3ee) !important;
-        border-radius: 10px !important;
-    }
-    
-    /* 側邊欄樣式 */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1e293b, #0f172a) !important;
-    }
-    
-    /* 隱藏Streamlit默認元素 */
+    /* 隱藏 Streamlit 默認元素 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .stDeployButton {display:none;}
     header {visibility: hidden;}
+    .css-1d391kg {padding: 0;}
     
-    /* 圖片容器樣式 */
-    .image-container {
-        text-align: center;
-        padding: 1rem;
-        background: linear-gradient(135deg, #1e293b, #334155);
-        border-radius: 15px;
-        margin: 1rem 0;
-        border: 1px solid rgba(34, 211, 238, 0.3);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    /* 主要容器 */
+    .main-interface {
+        display: grid;
+        grid-template-columns: 1fr 2fr 1fr;
+        height: 100vh;
+        gap: 0;
+        background: #1e2347;
     }
     
-    /* 列表項目樣式 */
+    /* 左側圖片列表面板 */
+    .image-list-panel {
+        background: #2c3e50;
+        border-radius: 0 0 0 15px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .panel-header {
+        background: linear-gradient(135deg, #3b4a6b, #2c3e50);
+        color: white;
+        padding: 15px 20px;
+        font-weight: bold;
+        font-size: 1.1rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .image-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        background: #34495e;
+    }
+    
     .image-item {
-        background: linear-gradient(135deg, #1e293b, #334155);
-        padding: 0.5rem;
-        margin: 0.2rem 0;
-        border-radius: 10px;
-        border-left: 4px solid #22d3ee;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        margin: 2px 0;
+        background: #34495e;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        color: white;
+        font-size: 0.85rem;
+    }
+    
+    .image-item:hover {
+        background: #4a90e2;
+        transform: translateX(3px);
+    }
+    
+    .image-item.active {
+        background: #e74c3c;
+        border-color: #c0392b;
+        box-shadow: 0 2px 8px rgba(231, 76, 60, 0.4);
+    }
+    
+    .image-item .index {
+        color: #bdc3c7;
+        font-weight: bold;
+        margin-right: 8px;
+        min-width: 25px;
+        font-size: 0.8rem;
+    }
+    
+    .image-item .filename {
+        flex: 1;
+        font-family: 'Consolas', monospace;
+        font-size: 0.75rem;
+        color: white;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .image-item .original-label {
+        background: #f39c12;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: bold;
+        margin: 0 3px;
+    }
+    
+    .image-item .ai-label {
+        background: #9b59b6;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+    
+    /* 中央圖片預覽面板 */
+    .image-preview-panel {
+        background: #34495e;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border: none;
+    }
+    
+    .preview-container {
+        background: #2c3e50;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        text-align: center;
+    }
+    
+    .captcha-display {
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    .captcha-display img {
+        max-width: 100%;
+        max-height: 150px;
+        image-rendering: pixelated;
+    }
+    
+    /* 右側控制面板 */
+    .control-panel {
+        background: #2c3e50;
+        border-radius: 0 0 15px 0;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .control-section {
+        padding: 15px 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .control-section:last-child {
+        border-bottom: none;
+        flex: 1;
+    }
+    
+    .section-title {
+        color: #ecf0f1;
+        font-size: 1rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .info-display {
+        background: #34495e;
+        padding: 10px;
+        border-radius: 6px;
+        margin: 8px 0;
+        font-family: 'Consolas', monospace;
+        font-size: 0.9rem;
+        color: #bdc3c7;
+    }
+    
+    .original-label-display {
+        background: #e74c3c;
+        color: white;
+        text-align: center;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 1.5rem;
+        font-weight: bold;
+        letter-spacing: 3px;
+        margin: 10px 0;
+    }
+    
+    .ai-result-display {
+        background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        color: white;
+        text-align: center;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 1.3rem;
+        font-weight: bold;
+        letter-spacing: 2px;
+        margin: 10px 0;
+        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
+    }
+    
+    .confidence-bar {
+        height: 8px;
+        background: #34495e;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 8px 0;
+    }
+    
+    .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #e74c3c, #f39c12, #27ae60);
+        transition: width 0.3s ease;
+        border-radius: 4px;
+    }
+    
+    .confidence-text {
+        text-align: center;
+        color: #bdc3c7;
+        font-size: 0.85rem;
+        margin-top: 5px;
+    }
+    
+    .use-ai-btn {
+        background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        font-weight: bold;
+        margin: 8px 0;
         transition: all 0.3s ease;
     }
     
-    .image-item.modified {
-        border-left-color: #22c55e;
-        background: linear-gradient(135deg, #0f2317, #1a2e1f);
-        box-shadow: 0 2px 10px rgba(34, 197, 94, 0.2);
+    .use-ai-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(155, 89, 182, 0.4);
     }
     
-    .image-item.current {
-        border-left-color: #a855f7;
-        background: linear-gradient(135deg, #2e1a3f, #3d2454);
-        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
+    .label-input {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.5rem;
+        font-weight: bold;
+        text-align: center;
+        border: 3px solid #34495e;
+        border-radius: 8px;
+        background: #27ae60;
+        color: white;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        margin: 10px 0;
+        font-family: 'Consolas', monospace;
     }
     
-    /* 文字顏色優化 */
-    .stMarkdown {
-        color: #e2e8f0 !important;
+    .label-input:focus {
+        outline: none;
+        border-color: #27ae60;
+        background: #2ecc71;
+        box-shadow: 0 0 10px rgba(39, 174, 96, 0.4);
     }
     
-    h1, h2, h3, h4, h5, h6 {
-        color: #22d3ee !important;
+    .save-btn {
+        background: linear-gradient(135deg, #27ae60, #229954);
+        color: white;
+        border: none;
+        padding: 15px;
+        border-radius: 8px;
+        cursor: pointer;
+        width: 100%;
+        font-weight: bold;
+        font-size: 1rem;
+        margin: 10px 0;
+        transition: all 0.3s ease;
     }
     
-    /* 選擇框樣式 */
-    .stSelectbox > div > div {
-        background: rgba(30, 41, 59, 0.8) !important;
-        border: 2px solid rgba(34, 211, 238, 0.5) !important;
-        border-radius: 10px !important;
+    .save-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(39, 174, 96, 0.4);
     }
     
-    /* 檔案上傳器樣式 */
-    .stFileUploader > div {
-        background: linear-gradient(135deg, #1e293b, #334155) !important;
-        border: 2px dashed rgba(34, 211, 238, 0.5) !important;
-        border-radius: 15px !important;
+    .save-btn:disabled {
+        background: #7f8c8d;
+        cursor: not-allowed;
+        transform: none;
+        opacity: 0.6;
     }
     
-    /* 資訊框樣式 */
-    .stInfo {
-        background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(13, 213, 233, 0.1)) !important;
-        border-left: 4px solid #22d3ee !important;
-        border-radius: 10px !important;
+    .nav-section {
+        padding: 15px 20px;
     }
     
-    .stSuccess {
-        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.1)) !important;
-        border-left: 4px solid #22c55e !important;
-        border-radius: 10px !important;
+    .nav-buttons {
+        display: flex;
+        gap: 8px;
+        margin: 10px 0;
     }
     
-    .stError {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1)) !important;
-        border-left: 4px solid #ef4444 !important;
-        border-radius: 10px !important;
+    .nav-btn {
+        flex: 1;
+        padding: 12px 8px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        color: white;
     }
     
-    .stWarning {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1)) !important;
-        border-left: 4px solid #f59e0b !important;
-        border-radius: 10px !important;
+    .nav-btn.prev {
+        background: linear-gradient(135deg, #3498db, #2980b9);
     }
     
-    /* 分隔線樣式 */
-    hr {
-        border: none !important;
-        height: 2px !important;
-        background: linear-gradient(90deg, #22d3ee, #22c55e, #a855f7) !important;
-        margin: 2rem 0 !important;
-        border-radius: 1px !important;
+    .nav-btn.next {
+        background: linear-gradient(135deg, #f39c12, #e67e22);
     }
     
-    /* Radio按鈕優化 */
-    .stRadio > div {
-        background: rgba(30, 41, 59, 0.3) !important;
-        border-radius: 10px !important;
-        padding: 0.5rem !important;
+    .nav-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     
-    /* 改進側邊欄文字可讀性 */
-    .css-1d391kg .stMarkdown {
-        color: #cbd5e1 !important;
+    .nav-btn:disabled {
+        background: #7f8c8d;
+        cursor: not-allowed;
+        transform: none;
+        opacity: 0.6;
     }
     
-    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
-        color: #22d3ee !important;
+    .progress-display {
+        text-align: center;
+        color: #e74c3c;
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    /* 滾動條樣式 */
+    .image-list::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .image-list::-webkit-scrollbar-track {
+        background: #2c3e50;
+    }
+    
+    .image-list::-webkit-scrollbar-thumb {
+        background: #4a90e2;
+        border-radius: 4px;
+    }
+    
+    .image-list::-webkit-scrollbar-thumb:hover {
+        background: #357abd;
+    }
+    
+    /* 響應式設計 */
+    @media (max-width: 1024px) {
+        .main-interface {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto auto;
+        }
+        
+        .image-list {
+            max-height: 200px;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 工具類 - 參照Flask版本
 class SimpleCaptchaCorrector:
     @staticmethod
     def extract_label_from_filename(filename: str) -> str:
-        """從PNG檔名擷取第一組4個大寫英文字母"""
         name_without_ext, ext = os.path.splitext(filename)
         if ext.lower() not in ['.png', '.jpg', '.jpeg']:
             return ""
@@ -388,43 +457,56 @@ class SimpleCaptchaCorrector:
 
     @staticmethod
     def validate_label(label: str) -> bool:
-        """驗證是否為4位大寫英文字母"""
         return bool(re.fullmatch(r'[A-Z]{4}', label))
 
     @staticmethod
     def generate_new_filename(new_label: str) -> str:
-        """依新標籤產生檔名"""
         return f"{new_label}.png"
 
-# CRNN模型 - 參照Flask版本
-class CRNN(nn.Module):
-    def __init__(self, img_height, img_width, num_classes, hidden_size=256, num_layers=2):
-        super(CRNN, self).__init__()
-        self.cnn = nn.Sequential(
-            nn.Conv2d(1, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True), nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True), nn.MaxPool2d(2, 2),
-            nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(inplace=True), nn.MaxPool2d((2, 1), (2, 1)),
-            nn.Conv2d(256, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(inplace=True), nn.MaxPool2d((2, 1), (2, 1)),
-            nn.Conv2d(512, 512, 2, padding=0), nn.BatchNorm2d(512), nn.ReLU(inplace=True)
-        )
-        self.rnn = nn.LSTM(512, hidden_size, num_layers, bidirectional=True, batch_first=True)
-        self.classifier = nn.Linear(hidden_size * 2, num_classes)
-        self.dropout = nn.Dropout(0.5)
+def create_crnn_model():
+    torch, nn, transforms = import_torch_modules()
+    if torch is None:
+        return None
+    
+    class CRNN(nn.Module):
+        def __init__(self, img_height, img_width, num_classes, hidden_size=256, num_layers=2):
+            super(CRNN, self).__init__()
+            self.cnn = nn.Sequential(
+                nn.Conv2d(1, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(inplace=True), nn.MaxPool2d(2, 2),
+                nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(inplace=True), nn.MaxPool2d(2, 2),
+                nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(inplace=True),
+                nn.Conv2d(256, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(inplace=True), nn.MaxPool2d((2, 1), (2, 1)),
+                nn.Conv2d(256, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(inplace=True),
+                nn.Conv2d(512, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(inplace=True), nn.MaxPool2d((2, 1), (2, 1)),
+                nn.Conv2d(512, 512, 2, padding=0), nn.BatchNorm2d(512), nn.ReLU(inplace=True)
+            )
+            self.rnn = nn.LSTM(512, hidden_size, num_layers, bidirectional=True, batch_first=True)
+            self.classifier = nn.Linear(hidden_size * 2, num_classes)
+            self.dropout = nn.Dropout(0.5)
 
-    def forward(self, x):
-        conv_features = self.cnn(x)
-        conv_features = conv_features.squeeze(2).permute(0, 2, 1)
-        rnn_output, _ = self.rnn(conv_features)
-        rnn_output = self.dropout(rnn_output)
-        output = self.classifier(rnn_output)
-        return output
+        def forward(self, x):
+            conv_features = self.cnn(x)
+            conv_features = conv_features.squeeze(2).permute(0, 2, 1)
+            rnn_output, _ = self.rnn(conv_features)
+            rnn_output = self.dropout(rnn_output)
+            output = self.classifier(rnn_output)
+            return output
+    
+    return CRNN
 
-# 預測器類 - 參照Flask版本
 class CRNNPredictor:
     def __init__(self):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.torch, self.nn, self.transforms = import_torch_modules()
+        if self.torch is None:
+            self.device = None
+            self.model = None
+            self.transform = None
+            self.config = None
+            self.is_loaded = False
+            self.model_info = {}
+            return
+            
+        self.device = self.torch.device('cuda' if self.torch.cuda.is_available() else 'cpu')
         self.model = None
         self.transform = None
         self.config = None
@@ -432,14 +514,14 @@ class CRNNPredictor:
         self.model_info = {}
 
     def load_model(self, model_path: str):
-        """載入CRNN模型"""
+        if self.torch is None:
+            return False
+            
         try:
             if not os.path.exists(model_path):
-                print(f"❌ 模型文件不存在: {model_path}")
                 return False
 
-            print(f"🔄 正在載入模型: {model_path}")
-            checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = self.torch.load(model_path, map_location=self.device)
             
             if 'config' in checkpoint:
                 self.config = checkpoint['config']
@@ -449,6 +531,10 @@ class CRNNPredictor:
             for key, val in DEFAULT_CONFIG.items():
                 self.config.setdefault(key, val)
 
+            CRNN = create_crnn_model()
+            if CRNN is None:
+                return False
+                
             self.model = CRNN(
                 img_height=self.config['IMAGE_HEIGHT'],
                 img_width=self.config['IMAGE_WIDTH'],
@@ -462,17 +548,16 @@ class CRNNPredictor:
             elif 'state_dict' in checkpoint:
                 sd_key = 'state_dict'
             else:
-                print("❌ 找不到 model_state_dict 或 state_dict")
                 return False
 
             self.model.load_state_dict(checkpoint[sd_key])
             self.model.eval()
 
-            self.transform = transforms.Compose([
-                transforms.Grayscale(self.config['INPUT_CHANNELS']),
-                transforms.Resize((self.config['IMAGE_HEIGHT'], self.config['IMAGE_WIDTH'])),
-                transforms.ToTensor(),
-                transforms.Normalize([0.5] * self.config['INPUT_CHANNELS'], [0.5] * self.config['INPUT_CHANNELS'])
+            self.transform = self.transforms.Compose([
+                self.transforms.Grayscale(self.config['INPUT_CHANNELS']),
+                self.transforms.Resize((self.config['IMAGE_HEIGHT'], self.config['IMAGE_WIDTH'])),
+                self.transforms.ToTensor(),
+                self.transforms.Normalize([0.5] * self.config['INPUT_CHANNELS'], [0.5] * self.config['INPUT_CHANNELS'])
             ])
 
             self.is_loaded = True
@@ -482,16 +567,13 @@ class CRNNPredictor:
                 'idx_to_char': checkpoint.get('idx_to_char', IDX_TO_CHAR)
             }
 
-            print(f"✅ CRNN模型載入成功 (epoch={self.model_info['epoch']}, acc={self.model_info['best_val_captcha_acc']:.4f})")
             return True
 
         except Exception as e:
-            print(f"❌ 模型載入失敗: {e}")
             return False
 
     def predict(self, image: Image.Image) -> Tuple[str, float]:
-        """對單張圖片做預測"""
-        if not self.is_loaded:
+        if not self.is_loaded or self.torch is None:
             return "", 0.0
 
         try:
@@ -500,7 +582,7 @@ class CRNNPredictor:
 
             input_tensor = self.transform(image).unsqueeze(0).to(self.device)
             
-            with torch.no_grad():
+            with self.torch.no_grad():
                 outputs = self.model(input_tensor)
 
             _, width_cnn_output, _ = outputs.shape
@@ -511,9 +593,9 @@ class CRNNPredictor:
                 focused = outputs[:, start:start + seq_len, :]
             else:
                 pad = seq_len - width_cnn_output
-                focused = torch.cat([outputs, outputs[:, -1:, :].repeat(1, pad, 1)], dim=1)
+                focused = self.torch.cat([outputs, outputs[:, -1:, :].repeat(1, pad, 1)], dim=1)
 
-            pred_indices = torch.argmax(focused, dim=2)[0]
+            pred_indices = self.torch.argmax(focused, dim=2)[0]
             idx_to_char_map = self.model_info.get('idx_to_char', IDX_TO_CHAR)
             
             if isinstance(next(iter(idx_to_char_map.keys())), str):
@@ -521,76 +603,54 @@ class CRNNPredictor:
 
             text = ''.join(idx_to_char_map.get(idx.item(), '?') for idx in pred_indices).upper()
 
-            probs = torch.softmax(focused, dim=2)
-            max_probs = torch.max(probs, dim=2)[0]
-            confidence = float(torch.mean(max_probs).item())
+            probs = self.torch.softmax(focused, dim=2)
+            max_probs = self.torch.max(probs, dim=2)[0]
+            confidence = float(self.torch.mean(max_probs).item())
 
             return text, confidence
 
         except Exception as e:
-            print(f"❌ 預測失敗: {e}")
             return "", 0.0
 
-def check_project_files():
-    """檢查項目中的重要檔案"""
-    current_dir = Path(".")
-    
-    # 檢查模型檔案
-    model_files = []
-    for model_path in MODEL_PATHS:
-        if Path(model_path).exists():
-            model_files.append(model_path)
-    
-    # 檢查圖片資料夾
-    image_folders = []
-    for item in current_dir.iterdir():
-        if item.is_dir() and not item.name.startswith('.'):
-            png_count = len(list(item.glob('*.png')))
-            if png_count > 0:
-                image_folders.append(f"{item.name} ({png_count} PNG檔案)")
-    
-    return model_files, image_folders
 def init_session_state():
-    """初始化session state變量"""
     defaults = {
         'folder_images': [],
         'current_index': 0,
         'ai_predictions': {},
-        'modified_labels': {},
         'modified_count': 0,
         'modified_files': set(),
         'ai_accurate_count': 0,
-        'folder_path': "massive_real_captchas"  # 根據您的項目結構調整預設路徑
+        'folder_path': "massive_real_captchas",
+        'temp_label': "",
+        'initialized': True
     }
     
     for key, default_value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
 
-# 載入模型（使用緩存）
 @st.cache_resource
 def load_crnn_model():
-    """載入並緩存CRNN模型"""
-    predictor = CRNNPredictor()
-    
-    model_files = ['best_crnn_captcha_model.pth', 'model.pth', 'crnn_model.pth']
-    model_path = None
-    
-    for file in model_files:
-        if os.path.exists(file):
-            model_path = file
-            break
-    
-    if model_path is None:
-        return None
-    
-    if predictor.load_model(model_path):
-        return predictor
-    else:
+    try:
+        predictor = CRNNPredictor()
+        
+        model_path = None
+        for file in MODEL_PATHS:
+            if os.path.exists(file):
+                model_path = file
+                break
+        
+        if model_path is None:
+            return None
+        
+        if predictor.load_model(model_path):
+            return predictor
+        else:
+            return None
+    except Exception as e:
         return None
 
 def load_images_from_folder(folder_path: str):
-    """從資料夾載入圖片"""
     try:
         resolved_path = Path(folder_path).resolve()
         
@@ -620,10 +680,10 @@ def load_images_from_folder(folder_path: str):
         st.session_state.folder_images = image_files_list
         st.session_state.current_index = 0
         st.session_state.ai_predictions = {}
-        st.session_state.modified_labels = {}
         st.session_state.modified_count = 0
         st.session_state.modified_files = set()
         st.session_state.ai_accurate_count = 0
+        st.session_state.temp_label = ""
         
         st.success(f"✅ 成功載入 {len(image_files_list)} 張PNG圖片")
         return True
@@ -633,15 +693,14 @@ def load_images_from_folder(folder_path: str):
         return False
 
 def perform_batch_ai_prediction(predictor):
-    """執行批量AI預測"""
     if not st.session_state.folder_images or not predictor:
         return
     
-    # 顯示進度
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     total_files = len(st.session_state.folder_images)
+    batch_predictions = {}
     
     for i, img_info in enumerate(st.session_state.folder_images):
         status_text.text(f"🤖 AI識別中 ({i+1}/{total_files}): {img_info['name']}")
@@ -650,22 +709,39 @@ def perform_batch_ai_prediction(predictor):
             image = Image.open(img_info['path'])
             predicted_text, confidence = predictor.predict(image)
             
-            st.session_state.ai_predictions[i] = {
+            batch_predictions[i] = {
                 'text': predicted_text,
                 'confidence': confidence
             }
             
         except Exception as e:
-            st.error(f"❌ AI預測失敗 {img_info['name']}: {e}")
-            st.session_state.ai_predictions[i] = {'text': "ERROR", 'confidence': 0}
+            batch_predictions[i] = {'text': "ERROR", 'confidence': 0}
         
         progress_bar.progress((i + 1) / total_files)
     
+    st.session_state.ai_predictions = batch_predictions
     status_text.success("🎯 AI批量識別完成！")
     progress_bar.empty()
 
+def get_default_label_for_current_image():
+    if not st.session_state.folder_images:
+        return ""
+    
+    current_idx = st.session_state.current_index
+    current_img = st.session_state.folder_images[current_idx]
+    
+    if current_idx in st.session_state.ai_predictions:
+        ai_pred = st.session_state.ai_predictions[current_idx]
+        if (ai_pred['confidence'] > 0.7 and 
+            SimpleCaptchaCorrector.validate_label(ai_pred['text'])):
+            return ai_pred['text']
+    
+    if current_img.get('original_label'):
+        return current_img['original_label']
+    
+    return ""
+
 def save_current_file(new_label: str):
-    """保存當前文件的修改"""
     if not st.session_state.folder_images:
         return False
     
@@ -678,28 +754,27 @@ def save_current_file(new_label: str):
     
     try:
         old_path = Path(current_file['path'])
-        new_filename = SimpleCaptchaCorrector.generate_new_filename(new_label)
+        
+        # 生成新檔名，處理重複情況
+        new_filename = generate_unique_filename(old_path.parent, new_label)
         new_path = old_path.parent / new_filename
         
-        # 檢查是否需要改名
+        # 如果路徑完全相同，表示沒有變更
         if old_path.resolve() == new_path.resolve():
             st.info(f"ℹ️ 檔名未變更: {new_filename}")
             return True
         
-        # 如果目標檔案存在，會被覆蓋
-        if new_path.exists():
-            st.warning(f"⚠️ 目標檔案 {new_filename} 已存在，將被覆蓋")
-        
-        # 執行改名
+        # 執行重命名
         old_path.replace(new_path)
         
-        # 更新記錄
+        # 更新統計
         original_label = current_file['original_label']
         if (st.session_state.ai_predictions.get(current_idx) and 
             st.session_state.ai_predictions[current_idx]['text'] == new_label and 
             original_label != new_label):
             st.session_state.ai_accurate_count += 1
         
+        # 更新檔案記錄
         st.session_state.folder_images[current_idx] = {
             'name': new_filename,
             'path': str(new_path),
@@ -710,627 +785,471 @@ def save_current_file(new_label: str):
             st.session_state.modified_count += 1
             st.session_state.modified_files.add(current_idx)
         
-        st.success(f"✅ 檔案已改名為: {new_filename}")
+        # 顯示成功消息
+        if "_" in new_filename:
+            st.success(f"✅ 檔案已改名為: {new_filename} (自動避免重複)")
+        else:
+            st.success(f"✅ 檔案已改名為: {new_filename}")
+        
         return True
         
     except Exception as e:
         st.error(f"❌ 保存失敗: {e}")
         return False
 
-def main():
-    """主應用程序"""
-    try:
-        # 初始化
-        init_session_state()
+def generate_unique_filename(directory: Path, label: str) -> str:
+    """
+    生成唯一的檔名，如果檔案已存在則加上 _001, _002 等後綴
+    
+    Args:
+        directory: 目標目錄
+        label: 4位大寫字母標籤
+    
+    Returns:
+        唯一的檔名
+    """
+    base_filename = f"{label}.png"
+    target_path = directory / base_filename
+    
+    # 如果檔案不存在，直接使用原始檔名
+    if not target_path.exists():
+        return base_filename
+    
+    # 檔案已存在，尋找可用的後綴
+    counter = 1
+    while counter <= 999:  # 最多支援到 _999
+        suffix_filename = f"{label}_{counter:03d}.png"
+        suffix_path = directory / suffix_filename
         
-        # 主標題
-        st.markdown("""
-        <div class="main-title">
-            <h1>🎯 AI驗證碼識別工具 - CRNN自動識別版</h1>
-            <p>使用CRNN模型自動識別4位大寫英文字母驗證碼</p>
-            <p style="font-size: 0.9rem; opacity: 0.9;">當前項目: ai_captcha-streamlit</p>
+        if not suffix_path.exists():
+            return suffix_filename
+        
+        counter += 1
+    
+    # 如果連 _999 都存在，則使用時間戳
+    import time
+    timestamp = int(time.time() * 1000) % 100000
+    return f"{label}_{timestamp}.png"
+
+def navigate_to_image(new_index: int):
+    if not st.session_state.folder_images:
+        return
+    
+    if 0 <= new_index < len(st.session_state.folder_images):
+        st.session_state.current_index = new_index
+        st.session_state.temp_label = get_default_label_for_current_image()
+
+def main():
+    if 'initialized' not in st.session_state:
+        init_session_state()
+    
+    # 載入模型
+    predictor = load_crnn_model()
+    
+    # 頂部標題區域
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #2c3e50, #34495e); padding: 20px; text-align: center; margin-bottom: 20px; border-radius: 10px;">
+        <h1 style="color: #e74c3c; font-size: 2rem; margin: 0; font-weight: bold;">
+            🎯 AI驗證碼識別工具 - CRNN自動識別版
+        </h1>
+        <p style="color: #ecf0f1; margin: 5px 0 0 0; font-size: 1rem;">
+            使用最新訓練的CRNN模型，專門識別4位大寫英文字母驗證碼
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # AI模型狀態顯示
+    if predictor is not None:
+        accuracy = predictor.model_info.get('best_val_captcha_acc', 0) * 100
+        st.markdown(f"""
+        <div style="background: #27ae60; color: white; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-weight: bold;">
+            🤖 CRNN模型已就緒！準確率: {accuracy:.2f}%
         </div>
         """, unsafe_allow_html=True)
-
-        # 載入模型
-        with st.spinner("🔄 正在載入CRNN模型..."):
-            predictor = load_crnn_model()
         
-        # 檢查項目檔案
-        model_files, image_folders = check_project_files()
-        
-        # 側邊欄
-        with st.sidebar:
-            st.markdown("### ⚙️ 控制面板")
-            
-            # 項目檔案狀態
-            st.markdown("### 📋 項目檔案狀態")
-            
-            # 模型檔案狀態
-            if model_files:
-                st.success(f"✅ 找到 {len(model_files)} 個模型檔案")
-                for model_file in model_files:
-                    file_size = os.path.getsize(model_file) / (1024*1024)
-                    st.text(f"📦 {model_file} ({file_size:.2f} MB)")
-            else:
-                st.error("❌ 未找到模型檔案")
-            
-            # 圖片資料夾狀態
-            if image_folders:
-                st.success(f"✅ 找到 {len(image_folders)} 個圖片資料夾")
-                for folder in image_folders:
-                    st.text(f"📁 {folder}")
-            else:
-                st.warning("⚠️ 未找到包含PNG檔案的資料夾")
-            
-            # 模型狀態
-            if predictor is not None:
-                st.markdown("""
-                <div class="ai-status-card">
-                    🤖 CRNN模型已就緒<br>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown("### 📊 模型詳情")
-                if predictor.model_info:
-                    epoch = predictor.model_info.get('epoch', 'unknown')
-                    accuracy = predictor.model_info.get('best_val_captcha_acc', 0)
-                    st.info(f"📈 訓練輪數: {epoch}")
-                    st.info(f"📊 驗證準確率: {accuracy:.4f}")
-                    st.info(f"🔤 支援字符: {CHARACTERS}")
-                    st.info(f"📏 序列長度: {CAPTCHA_LENGTH_EXPECTED}")
-            else:
-                st.markdown("""
-                <div class="ai-status-card ai-status-error">
-                    ❌ 模型載入失敗<br>
-                    請檢查模型文件
-                </div>
-                """, unsafe_allow_html=True)
-                st.error("找不到模型文件。請確保以下任一文件存在：")
-                for path in MODEL_PATHS:
-                    st.error(f"• {path}")
-                st.stop()
-            
-            st.markdown("### 🎯 功能選擇")
-            page_mode = st.radio(
-                "選擇操作模式",
-                ["📁 資料夾批量處理", "📷 單張識別", "📊 統計分析"],
-                index=0
-            )
-
-        # 主要內容區域
-        if page_mode == "📁 資料夾批量處理":
-            folder_batch_processing(predictor)
-        elif page_mode == "📷 單張識別":
-            single_image_recognition(predictor)
-        else:
-            statistics_analysis(predictor)
-            
-    except Exception as e:
-        st.error(f"❌ 應用程序發生錯誤: {e}")
-        st.error("請重新載入頁面或聯繫支援")
-
-def folder_batch_processing(predictor):
-    """資料夾批量處理功能"""
-    st.markdown("## 📁 資料夾批量處理")
+        # 模型詳細信息
+        epoch = predictor.model_info.get('epoch', 'unknown')
+        st.markdown(f"""
+        <div style="background: rgba(155, 89, 182, 0.2); border: 1px solid #9b59b6; color: #bb8fce; padding: 8px 15px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9rem;">
+            📋 模型訓練輪數: {epoch} | 驗證準確率: {accuracy:.2f}% | 支援字符: {CHARACTERS} | 序列長度: {CAPTCHA_LENGTH_EXPECTED}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background: #e74c3c; color: white; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-weight: bold;">
+            ❌ CRNN模型載入失敗，請檢查模型檔案路徑
+        </div>
+        """, unsafe_allow_html=True)
     
-    # 檢查項目檔案
-    model_files, image_folders = check_project_files()
+    # 資料夾選擇區域
+    st.markdown("""
+    <div style="background: #34495e; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+        <h3 style="color: #ecf0f1; margin-bottom: 15px;">📁 資料夾路徑設定:</h3>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # 路徑設定區域 - 基於實際存在的資料夾
-    st.markdown("### 📂 資料夾路徑設定")
+    # 預設路徑按鈕
+    st.markdown("**快速選擇路徑:**")
+    preset_col1, preset_col2, preset_col3, preset_col4 = st.columns(4)
     
-    # 顯示可用的圖片資料夾
-    if image_folders:
-        st.markdown("#### 🎯 專案中可用的圖片資料夾:")
-        cols = st.columns(min(len(image_folders), 4))
-        for i, folder_info in enumerate(image_folders):
-            folder_name = folder_info.split(' (')[0]  # 取得資料夾名稱
-            with cols[i % 4]:
-                if st.button(f"📁 {folder_name}", help=f"選擇: {folder_info}", key=f"proj_folder_{i}"):
-                    st.session_state.folder_path = folder_name
-    
-    # 其他常用路徑
-    st.markdown("#### 🔗 其他常用路徑:")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if st.button("📁 massive_real_captchas", help="設定為項目中的massive_real_captchas資料夾"):
-            st.session_state.folder_path = "massive_real_captchas"
-    
-    with col2:
-        if st.button("🖥️ 桌面", help="設定為桌面路徑"):
+    with preset_col1:
+        if st.button("🖥️ 桌面", use_container_width=True):
             st.session_state.folder_path = r"C:\Users\User\Desktop"
     
-    with col3:
-        if st.button("📥 下載", help="設定為下載資料夾"):
+    with preset_col2:
+        if st.button("📥 下載", use_container_width=True):
             st.session_state.folder_path = r"C:\Users\User\Downloads"
     
-    with col4:
-        if st.button("🧪 測試數據", help="設定為測試數據路徑"):
+    with preset_col3:
+        if st.button("🎯 預設偵錯", use_container_width=True):
+            st.session_state.folder_path = r"C:\Users\User\Desktop\Python3.8\02_emnist\debug_captchas_adaptive_captcha_paper"
+    
+    with preset_col4:
+        if st.button("🧪 測試數據", use_container_width=True):
             st.session_state.folder_path = r"C:\Users\User\Desktop\Python3.8\02_emnist\debug_captchas_augmented_all_split\test"
     
-    # 路徑輸入
-    folder_path = st.text_input(
-        "📁 資料夾路徑",
-        value=st.session_state.folder_path,
-        help="請輸入包含PNG圖片的資料夾絕對路徑"
-    )
-    st.session_state.folder_path = folder_path
+    # 路徑輸入和載入按鈕
+    path_col1, path_col2, path_col3 = st.columns([3, 1, 1])
     
-    # 載入按鈕
-    col_load, col_predict = st.columns(2)
+    with path_col1:
+        folder_path = st.text_input(
+            "資料夾路徑", 
+            value=st.session_state.folder_path, 
+            key="folder_input",
+            placeholder="請輸入PNG圖片資料夾的絕對路徑",
+            help="支援拖拽資料夾到此處"
+        )
+        st.session_state.folder_path = folder_path
     
-    with col_load:
-        if st.button("🚀 載入圖片", type="primary"):
+    with path_col2:
+        if st.button("🚀 載入圖片", type="primary", use_container_width=True):
             if folder_path.strip():
                 if load_images_from_folder(folder_path.strip()):
                     st.rerun()
             else:
                 st.error("❌ 請輸入資料夾路徑")
     
-    with col_predict:
-        if st.button("🤖 開始AI批量識別", type="secondary", disabled=not st.session_state.folder_images):
-            if st.session_state.folder_images:
+    with path_col3:
+        if st.button("🤖 批量識別", 
+                    disabled=not st.session_state.folder_images or not predictor, 
+                    use_container_width=True,
+                    type="secondary"):
+            if st.session_state.folder_images and predictor:
                 perform_batch_ai_prediction(predictor)
                 st.rerun()
-
-    # 提示信息
-    st.info("💡 **AI功能**: 自動使用CRNN模型識別4位大寫英文字母 (A-Z)")
-    st.info("💡 **保存規則**: 新檔名將是修正後的4位大寫英文字母 + \".png\"")
-    st.warning("⚠️ **注意**: 若目標檔名已存在，則會直接覆寫")
     
-    # 如果有載入的圖片，顯示處理界面
+    # 路徑提示信息
     if st.session_state.folder_images:
-        display_image_processing_interface(predictor)
+        total_files = len(st.session_state.folder_images)
+        st.markdown(f"""
+        <div style="background: rgba(52, 152, 219, 0.1); border: 1px solid #3498db; color: #85c1e9; padding: 8px 15px; border-radius: 6px; margin: 10px 0; font-size: 0.9rem;">
+            💡 <strong>AI功能:</strong> 自動使用CRNN模型識別4位大寫英文字母 (A-Z)<br>
+            💡 <strong>保存規則:</strong> 新檔名將是修正後的4位大寫英文字母 + ".png"<br>
+            💡 <strong>已載入:</strong> {total_files} 張PNG圖片，若目標檔名已存在則會直接覆寫
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background: rgba(52, 152, 219, 0.1); border: 1px solid #3498db; color: #85c1e9; padding: 8px 15px; border-radius: 6px; margin: 10px 0; font-size: 0.9rem;">
+            💡 <strong>使用說明:</strong><br>
+            1. 選擇包含PNG驗證碼圖片的資料夾<br>
+            2. 點擊"載入圖片"掃描所有PNG檔案<br>
+            3. 點擊"批量識別"使用AI自動識別所有圖片<br>
+            4. 在下方界面中瀏覽和修正識別結果
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 主要界面
+    if st.session_state.folder_images:
+        render_main_interface(predictor)
+    else:
+        # 空狀態顯示
+        st.markdown("""
+        <div style="text-align: center; padding: 60px 20px; color: #7f8c8d;">
+            <h2 style="color: #95a5a6;">📂 請先載入圖片資料夾</h2>
+            <p style="font-size: 1.1rem; margin-top: 20px;">選擇包含PNG驗證碼圖片的資料夾，然後點擊"載入圖片"開始處理</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-def display_image_processing_interface(predictor):
-    """顯示圖片處理界面"""
-    st.markdown("---")
-    st.markdown("## 🖼️ 圖片處理界面")
+def render_main_interface(predictor):
+    # 創建三列佈局
+    col_list, col_preview, col_control = st.columns([1, 2, 1])
     
-    # 統計信息
-    col_stats1, col_stats2, col_stats3, col_stats4 = st.columns(4)
-    
-    with col_stats1:
-        st.metric("📋 總檔案數", len(st.session_state.folder_images))
-    
-    with col_stats2:
-        st.metric("✅ 已修正", st.session_state.modified_count)
-    
-    with col_stats3:
-        ai_acc = (st.session_state.ai_accurate_count / max(st.session_state.modified_count, 1)) * 100
-        st.metric("🤖 AI準確率", f"{ai_acc:.0f}%")
-    
-    with col_stats4:
-        progress = (st.session_state.modified_count / len(st.session_state.folder_images)) * 100
-        st.metric("📈 完成進度", f"{progress:.0f}%")
-    
-    # 主要處理區域
-    col_list, col_main = st.columns([1, 2])
-    
+    # 左側：圖片列表面板
     with col_list:
-        st.markdown("#### 📋 圖片列表")
+        st.markdown("""
+        <div class="panel-header">
+            📋 圖片列表 (AI識別結果)
+        </div>
+        """, unsafe_allow_html=True)
         
-        # 圖片列表
-        list_container = st.container()
-        with list_container:
-            for i, img_info in enumerate(st.session_state.folder_images):
-                # 構建顯示文本
-                display_text = f"{i+1}. {img_info['name'][:20]}..."
-                
-                # 添加AI預測結果
-                if i in st.session_state.ai_predictions:
-                    ai_pred = st.session_state.ai_predictions[i]
-                    display_text += f" | AI: {ai_pred['text']}"
-                
-                # 樣式類別
-                style_class = "image-item"
-                if i in st.session_state.modified_files:
-                    style_class += " modified"
-                if i == st.session_state.current_index:
-                    style_class += " current"
-                
-                # 顯示項目
-                if st.button(
-                    display_text,
-                    key=f"img_btn_{i}",
-                    help=f"點擊查看: {img_info['name']}",
-                    use_container_width=True
-                ):
-                    st.session_state.current_index = i
-                    st.rerun()
-                
-                # 顯示樣式標記
-                if i == st.session_state.current_index:
-                    st.markdown("👆 **當前選中**")
-                elif i in st.session_state.modified_files:
-                    st.markdown("✅ 已修正")
+        # 創建圖片列表容器
+        with st.container():
+            list_container = st.container()
+            with list_container:
+                for i, img_info in enumerate(st.session_state.folder_images[:50]):  # 限制顯示前50個避免太慢
+                    # 檢查是否為當前圖片
+                    is_active = i == st.session_state.current_index
+                    is_modified = i in st.session_state.modified_files
+                    
+                    # 獲取AI預測結果
+                    ai_pred = st.session_state.ai_predictions.get(i, {})
+                    original_label = img_info.get('original_label', '')
+                    
+                    # 構建顯示文字
+                    display_parts = []
+                    display_parts.append(f"{i+1}.")
+                    display_parts.append(img_info['name'][:15] + "..." if len(img_info['name']) > 15 else img_info['name'])
+                    
+                    if original_label:
+                        display_parts.append(f"[{original_label}]")
+                    
+                    if ai_pred.get('text'):
+                        display_parts.append(f"AI:{ai_pred['text']}")
+                    
+                    display_text = " ".join(display_parts)
+                    
+                    # 按鈕樣式
+                    button_type = "primary" if is_active else "secondary"
+                    
+                    if st.button(
+                        display_text,
+                        key=f"img_btn_{i}",
+                        help=f"點擊查看: {img_info['name']}\n原始標籤: {original_label}\nAI識別: {ai_pred.get('text', 'N/A')}",
+                        type=button_type,
+                        use_container_width=True
+                    ):
+                        navigate_to_image(i)
+                        st.rerun()
+                    
+                    # 狀態指示
+                    if is_active:
+                        st.markdown("👆 **當前選中**")
+                    elif is_modified:
+                        st.markdown("✅ **已修正**")
     
-    with col_main:
-        st.markdown("#### 🖼️ 當前圖片處理")
+    # 中央：圖片預覽面板
+    with col_preview:
+        st.markdown("""
+        <div class="panel-header">
+            🖼️ 驗證碼圖片預覽
+        </div>
+        """, unsafe_allow_html=True)
         
         if st.session_state.current_index < len(st.session_state.folder_images):
             current_img = st.session_state.folder_images[st.session_state.current_index]
             
-            # 圖片顯示
-            col_img, col_control = st.columns([2, 1])
+            # 創建圖片預覽容器
+            st.markdown("""
+            <div class="preview-container">
+                <div class="captcha-display">
+            """, unsafe_allow_html=True)
             
-            with col_img:
-                try:
-                    image = Image.open(current_img['path'])
-                    st.image(
-                        image,
-                        caption=f"檔案: {current_img['name']}",
-                        use_column_width=True
-                    )
-                except Exception as e:
-                    st.error(f"❌ 無法載入圖片: {e}")
+            try:
+                image = Image.open(current_img['path'])
+                st.image(image, use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ 無法載入圖片: {e}")
             
-            with col_control:
-                st.markdown("##### 📄 檔案信息")
-                st.text(f"檔名: {current_img['name']}")
-                st.text(f"原始標籤: {current_img['original_label'] or '無法提取'}")
-                
-                # AI識別結果
-                current_idx = st.session_state.current_index
-                if current_idx in st.session_state.ai_predictions:
-                    ai_pred = st.session_state.ai_predictions[current_idx]
-                    
-                    st.markdown("##### 🤖 AI識別結果")
-                    st.markdown(f"""
-                    <div class="ai-result">
-                        {ai_pred['text']}<br>
-                        置信度: {ai_pred['confidence']:.2%}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.progress(ai_pred['confidence'])
-                    
-                    # 使用AI結果按鈕
-                    if st.button("🎯 使用AI識別結果", use_container_width=True):
-                        if SimpleCaptchaCorrector.validate_label(ai_pred['text']):
-                            st.session_state.temp_label = ai_pred['text']
-                            st.success(f"✅ 已填入AI結果: {ai_pred['text']}")
-                        else:
-                            st.warning("⚠️ AI預測結果格式無效")
-                
-                # 標籤修正
-                st.markdown("##### ✏️ 標籤修正")
-                
-                # 預設值邏輯
-                default_value = ""
-                if current_idx in st.session_state.ai_predictions:
-                    ai_pred = st.session_state.ai_predictions[current_idx]
-                    if (ai_pred['confidence'] > 0.7 and 
-                        SimpleCaptchaCorrector.validate_label(ai_pred['text'])):
-                        default_value = ai_pred['text']
-                
-                if not default_value and current_img['original_label']:
-                    default_value = current_img['original_label']
-                
-                # 使用臨時變量來處理輸入
-                if 'temp_label' not in st.session_state:
-                    st.session_state.temp_label = default_value
-                
-                new_label = st.text_input(
-                    "輸入4個大寫字母",
-                    value=st.session_state.temp_label,
-                    max_chars=4,
-                    key=f"label_input_{current_idx}",
-                    help="只能輸入A-Z的大寫字母"
-                ).upper()
-                
-                # 更新臨時變量
-                st.session_state.temp_label = new_label
-                
-                # 驗證輸入
-                is_valid = SimpleCaptchaCorrector.validate_label(new_label)
-                
-                if new_label:
-                    if is_valid:
-                        st.success(f"✅ 格式正確: {new_label}")
-                    else:
-                        st.error("❌ 請輸入4個大寫英文字母")
-                
-                # 保存按鈕
-                if st.button(
-                    "💾 保存修改",
-                    disabled=not is_valid,
-                    use_container_width=True,
-                    type="primary"
-                ):
-                    if save_current_file(new_label):
-                        # 保存成功後自動跳到下一張
-                        if current_idx < len(st.session_state.folder_images) - 1:
-                            st.session_state.current_index += 1
-                            # 重置臨時標籤
-                            next_img = st.session_state.folder_images[st.session_state.current_index]
-                            next_default = ""
-                            if st.session_state.current_index in st.session_state.ai_predictions:
-                                next_ai = st.session_state.ai_predictions[st.session_state.current_index]
-                                if (next_ai['confidence'] > 0.7 and 
-                                    SimpleCaptchaCorrector.validate_label(next_ai['text'])):
-                                    next_default = next_ai['text']
-                            if not next_default and next_img['original_label']:
-                                next_default = next_img['original_label']
-                            st.session_state.temp_label = next_default
-                        else:
-                            st.balloons()
-                            st.success("🎉 全部處理完成！")
-                        st.rerun()
-                
-                # 導航按鈕
-                st.markdown("##### 🧭 導航")
-                nav_col1, nav_col2 = st.columns(2)
-                
-                with nav_col1:
-                    if st.button(
-                        "⬅️ 上一張",
-                        disabled=current_idx == 0,
-                        use_container_width=True
-                    ):
-                        st.session_state.current_index -= 1
-                        # 更新臨時標籤
-                        prev_img = st.session_state.folder_images[st.session_state.current_index]
-                        prev_default = ""
-                        if st.session_state.current_index in st.session_state.ai_predictions:
-                            prev_ai = st.session_state.ai_predictions[st.session_state.current_index]
-                            if (prev_ai['confidence'] > 0.7 and 
-                                SimpleCaptchaCorrector.validate_label(prev_ai['text'])):
-                                prev_default = prev_ai['text']
-                        if not prev_default and prev_img['original_label']:
-                            prev_default = prev_img['original_label']
-                        st.session_state.temp_label = prev_default
-                        st.rerun()
-                
-                with nav_col2:
-                    if st.button(
-                        "下一張 ➡️",
-                        disabled=current_idx >= len(st.session_state.folder_images) - 1,
-                        use_container_width=True
-                    ):
-                        st.session_state.current_index += 1
-                        # 更新臨時標籤
-                        next_img = st.session_state.folder_images[st.session_state.current_index]
-                        next_default = ""
-                        if st.session_state.current_index in st.session_state.ai_predictions:
-                            next_ai = st.session_state.ai_predictions[st.session_state.current_index]
-                            if (next_ai['confidence'] > 0.7 and 
-                                SimpleCaptchaCorrector.validate_label(next_ai['text'])):
-                                next_default = next_ai['text']
-                        if not next_default and next_img['original_label']:
-                            next_default = next_img['original_label']
-                        st.session_state.temp_label = next_default
-                        st.rerun()
-                
-                # 進度指示器
-                st.markdown(f"**📍 進度**: {current_idx + 1} / {len(st.session_state.folder_images)}")
-                progress_pct = (current_idx + 1) / len(st.session_state.folder_images)
-                st.progress(progress_pct)
-
-def single_image_recognition(predictor):
-    """單張圖片識別"""
-    st.markdown("## 📷 單張圖片識別")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("#### 🖼️ 上傳圖片")
-        
-        uploaded_file = st.file_uploader(
-            "選擇驗證碼圖片",
-            type=['png', 'jpg', 'jpeg'],
-            help="支援PNG、JPG、JPEG格式"
-        )
-        
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file)
-            st.image(image, caption="上傳的驗證碼", use_column_width=True)
+            st.markdown("""
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            original_label = SimpleCaptchaCorrector.extract_label_from_filename(uploaded_file.name)
-            if original_label:
-                st.info(f"📝 檔名中的標籤: **{original_label}**")
-    
-    with col2:
-        st.markdown("#### 🎯 識別結果")
-        
-        if uploaded_file is not None:
-            if st.button("🚀 開始AI識別", type="primary", use_container_width=True):
-                with st.spinner("🤖 AI正在識別中..."):
-                    predicted_text, confidence = predictor.predict(image)
-                
-                if predicted_text:
-                    st.markdown(f"""
-                    <div class="ai-result">
-                        🤖 AI識別結果: <strong>{predicted_text}</strong><br>
-                        📊 置信度: {confidence:.2%}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.progress(confidence)
-                    
-                    # 置信度評估
-                    if confidence > 0.9:
-                        st.success("🟢 高置信度 - 結果可信")
-                    elif confidence > 0.7:
-                        st.warning("🟡 中等置信度 - 建議檢查")
-                    else:
-                        st.warning("🟠 低置信度 - 需要驗證")
-                    
-                    # 結果修正
-                    st.markdown("#### ✏️ 結果修正")
-                    corrected_text = st.text_input(
-                        "修正結果:",
-                        value=predicted_text,
-                        max_chars=4,
-                        help="可以修正AI識別結果"
-                    ).upper()
-                    
-                    is_valid = SimpleCaptchaCorrector.validate_label(corrected_text)
-                    
-                    if corrected_text and is_valid:
-                        st.success(f"✅ 格式正確: {corrected_text}")
-                        
-                        if st.button("💾 確認結果", use_container_width=True):
-                            st.markdown(f"""
-                            <div class="success-result">
-                                ✅ 已確認結果: <strong>{corrected_text}</strong><br>
-                                建議檔名: {SimpleCaptchaCorrector.generate_new_filename(corrected_text)}
-                            </div>
-                            """, unsafe_allow_html=True)
-                            st.balloons()
-                    elif corrected_text:
-                        st.error("❌ 請輸入4個大寫英文字母")
-                else:
-                    st.error("❌ AI識別失敗，請嘗試其他圖片")
-
-def statistics_analysis(predictor):
-    """統計分析"""
-    st.markdown("## 📊 統計分析")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("#### 🔧 技術規格")
-        
-        # 使用表格顯示技術規格
-        specs_data = {
-            "項目": [
-                "模型架構",
-                "支援字符",
-                "字符數量", 
-                "序列長度",
-                "計算設備",
-                "輸入尺寸",
-                "隱藏層大小",
-                "LSTM層數"
-            ],
-            "規格": [
-                "CRNN (CNN + LSTM)",
-                CHARACTERS,
-                len(CHARACTERS),
-                CAPTCHA_LENGTH_EXPECTED,
-                "CPU" if not torch.cuda.is_available() else "CUDA",
-                f"{DEFAULT_CONFIG['IMAGE_HEIGHT']}×{DEFAULT_CONFIG['IMAGE_WIDTH']}",
-                DEFAULT_CONFIG['HIDDEN_SIZE'],
-                DEFAULT_CONFIG['NUM_LAYERS']
-            ]
-        }
-        
-        import pandas as pd
-        specs_df = pd.DataFrame(specs_data)
-        st.dataframe(specs_df, use_container_width=True, hide_index=True)
-    
-    with col2:
-        st.markdown("#### 📈 性能指標")
-        
-        if predictor and predictor.model_info:
-            # 使用指標卡片顯示
-            st.metric(
-                "訓練輪數",
-                predictor.model_info.get('epoch', 'unknown')
-            )
+            # 圖片信息
+            st.markdown(f"**檔案名稱:** `{current_img['name']}`")
             
-            accuracy = predictor.model_info.get('best_val_captcha_acc', 0)
-            st.metric(
-                "驗證準確率",
-                f"{accuracy:.4f}",
-                f"{accuracy*100:.2f}%"
-            )
-            
-            st.metric(
-                "推理速度",
-                "~100ms/圖片",
-                help="平均單張圖片處理時間"
-            )
-            
-            st.metric(
-                "支援格式",
-                "PNG, JPG, JPEG"
-            )
         else:
-            st.warning("⚠️ 模型未正確載入，無法顯示性能指標")
+            st.markdown("""
+            <div class="preview-container">
+                <p style="font-size: 1.5rem; color: #95a5a6;">請選擇要查看的圖片 🎨</p>
+            </div>
+            """, unsafe_allow_html=True)
     
-    # 當前處理統計
-    if st.session_state.folder_images:
-        st.markdown("---")
-        st.markdown("#### 📋 當前批次統計")
+    # 右側：控制面板
+    with col_control:
+        st.markdown("""
+        <div class="panel-header">
+            ⚙️ 控制面板
+        </div>
+        """, unsafe_allow_html=True)
         
-        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-        
-        with col_stat1:
-            st.metric(
-                "📋 總檔案數",
-                len(st.session_state.folder_images)
-            )
-        
-        with col_stat2:
-            st.metric(
-                "✅ 已修正檔案",
-                st.session_state.modified_count,
-                f"{(st.session_state.modified_count/len(st.session_state.folder_images)*100):.1f}%"
-            )
-        
-        with col_stat3:
-            ai_accuracy = 0
-            if st.session_state.modified_count > 0:
-                ai_accuracy = (st.session_state.ai_accurate_count / st.session_state.modified_count) * 100
-            st.metric(
-                "🤖 AI準確率",
-                f"{ai_accuracy:.1f}%",
-                help="AI預測與最終標籤的匹配率"
-            )
-        
-        with col_stat4:
-            remaining = len(st.session_state.folder_images) - st.session_state.modified_count
-            st.metric(
-                "⏳ 剩餘處理",
-                remaining,
-                f"{remaining} 張圖片"
-            )
-        
-        # AI預測信心度分布
-        if st.session_state.ai_predictions:
-            st.markdown("#### 📊 AI預測信心度分布")
+        if st.session_state.current_index < len(st.session_state.folder_images):
+            current_img = st.session_state.folder_images[st.session_state.current_index]
+            current_idx = st.session_state.current_index
             
-            confidences = [pred['confidence'] for pred in st.session_state.ai_predictions.values()]
+            # 檔案信息區域
+            st.markdown("##### 📄 檔案信息")
+            st.markdown(f"**檔名:** `{current_img['name']}`")
             
-            # 統計不同信心度區間
-            high_conf = sum(1 for c in confidences if c > 0.9)
-            med_conf = sum(1 for c in confidences if 0.7 <= c <= 0.9)
-            low_conf = sum(1 for c in confidences if c < 0.7)
+            original_label = current_img.get('original_label', '')
+            if original_label:
+                st.markdown(f"""
+                <div class="original-label-display">
+                    {original_label}
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("**原始標籤** (從檔名提取)")
+            else:
+                st.markdown("**原始標籤:** 無法提取")
             
-            conf_col1, conf_col2, conf_col3 = st.columns(3)
+            # AI識別結果區域
+            st.markdown("##### 🤖 AI識別結果")
             
-            with conf_col1:
-                st.metric(
-                    "🟢 高信心度 (>90%)",
-                    high_conf,
-                    f"{(high_conf/len(confidences)*100):.1f}%"
-                )
+            if current_idx in st.session_state.ai_predictions:
+                ai_pred = st.session_state.ai_predictions[current_idx]
+                
+                st.markdown(f"""
+                <div class="ai-result-display">
+                    {ai_pred['text']}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 置信度顯示
+                confidence = ai_pred['confidence']
+                st.markdown(f"""
+                <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: {confidence * 100}%"></div>
+                </div>
+                <div class="confidence-text">置信度: {confidence:.1%}</div>
+                """, unsafe_allow_html=True)
+                
+                # 使用AI結果按鈕
+                if st.button("🎯 使用AI識別結果", 
+                           key=f"use_ai_{current_idx}",
+                           use_container_width=True):
+                    if SimpleCaptchaCorrector.validate_label(ai_pred['text']):
+                        st.session_state.temp_label = ai_pred['text']
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ AI識別結果格式無效")
+            else:
+                st.markdown("""
+                <div class="ai-result-display">
+                    等待AI識別...
+                </div>
+                """, unsafe_allow_html=True)
+                st.info("💡 請先執行 AI 批量識別")
             
-            with conf_col2:
-                st.metric(
-                    "🟡 中信心度 (70-90%)",
-                    med_conf,
-                    f"{(med_conf/len(confidences)*100):.1f}%"
-                )
+            # 標籤修正區域
+            st.markdown("##### ✏️ 標籤修正 (4位大寫字母)")
             
-            with conf_col3:
-                st.metric(
-                    "🟠 低信心度 (<70%)",
-                    low_conf,
-                    f"{(low_conf/len(confidences)*100):.1f}%"
-                )
+            # 獲取預設標籤
+            if not st.session_state.temp_label:
+                st.session_state.temp_label = get_default_label_for_current_image()
             
-            # 顯示平均信心度
-            avg_confidence = sum(confidences) / len(confidences)
-            st.metric(
-                "📊 平均信心度",
-                f"{avg_confidence:.3f}",
-                f"{avg_confidence*100:.1f}%"
-            )
+            # 標籤輸入框
+            new_label = st.text_input(
+                "輸入修正後的標籤",
+                value=st.session_state.temp_label,
+                max_chars=4,
+                key=f"label_input_{current_idx}",
+                help="只能輸入A-Z的大寫字母",
+                placeholder="例如: ABCD"
+            ).upper()
+            
+            st.session_state.temp_label = new_label
+            is_valid = SimpleCaptchaCorrector.validate_label(new_label)
+            
+            # 驗證提示
+            if new_label:
+                if is_valid:
+                    st.success("✅ 格式正確")
+                else:
+                    st.error("❌ 請輸入4個大寫英文字母")
+            
+            # 保存按鈕
+            if st.button("💾 保存修改", 
+                        disabled=not is_valid, 
+                        use_container_width=True, 
+                        type="primary",
+                        key=f"save_btn_{current_idx}"):
+                if save_current_file(new_label):
+                    if current_idx < len(st.session_state.folder_images) - 1:
+                        navigate_to_image(current_idx + 1)
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.success("🎉 全部處理完成！")
+                        st.balloons()
+            
+            # 導航區域
+            st.markdown("##### 🧭 導航")
+            
+            nav_col1, nav_col2 = st.columns(2)
+            
+            with nav_col1:
+                if st.button("⬅️ 上一張", 
+                           disabled=current_idx == 0, 
+                           use_container_width=True, 
+                           key=f"prev_btn_{current_idx}"):
+                    navigate_to_image(current_idx - 1)
+                    st.rerun()
+            
+            with nav_col2:
+                if st.button("下一張 ➡️", 
+                           disabled=current_idx >= len(st.session_state.folder_images) - 1, 
+                           use_container_width=True, 
+                           key=f"next_btn_{current_idx}"):
+                    navigate_to_image(current_idx + 1)
+                    st.rerun()
+            
+            # 進度顯示
+            st.markdown(f"""
+            <div class="progress-display">
+                {current_idx + 1} / {len(st.session_state.folder_images)}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            progress_pct = (current_idx + 1) / len(st.session_state.folder_images)
+            st.progress(progress_pct, text=f"進度: {progress_pct:.1%}")
+            
+            # 統計信息
+            st.markdown("##### 📊 處理統計")
+            
+            col_stat1, col_stat2 = st.columns(2)
+            with col_stat1:
+                st.metric("總檔案", len(st.session_state.folder_images))
+                st.metric("已修正", st.session_state.modified_count)
+            
+            with col_stat2:
+                ai_acc = (st.session_state.ai_accurate_count / max(st.session_state.modified_count, 1)) * 100
+                st.metric("AI準確率", f"{ai_acc:.0f}%")
+                
+                overall_progress = (st.session_state.modified_count / len(st.session_state.folder_images)) * 100
+                st.metric("完成進度", f"{overall_progress:.0f}%")
+            
+            # 快速跳轉
+            if len(st.session_state.folder_images) > 10:
+                st.markdown("##### ⚡ 快速跳轉")
+                
+                jump_col1, jump_col2 = st.columns(2)
+                
+                with jump_col1:
+                    if st.button("🏠 回到開頭", 
+                               key=f"jump_start_{current_idx}",
+                               disabled=current_idx == 0,
+                               use_container_width=True):
+                        navigate_to_image(0)
+                        st.rerun()
+                
+                with jump_col2:
+                    last_idx = len(st.session_state.folder_images) - 1
+                    if st.button("🏁 跳到最後", 
+                               key=f"jump_end_{current_idx}",
+                               disabled=current_idx == last_idx,
+                               use_container_width=True):
+                        navigate_to_image(last_idx)
+                        st.rerun()
+                
+                # 中間位置跳轉
+                mid_idx = len(st.session_state.folder_images) // 2
+                if st.button("📍 跳到中間", 
+                           key=f"jump_mid_{current_idx}",
+                           disabled=current_idx == mid_idx,
+                           use_container_width=True):
+                    navigate_to_image(mid_idx)
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
