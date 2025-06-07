@@ -12,24 +12,39 @@ import time
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
-# 環境設定 - 修正 PyTorch 與 Streamlit 兼容性問題
+# 環境設定 - 完全修正 PyTorch 與 Streamlit 兼容性問題
 import os
 import sys
 import warnings
 
-# 在導入其他模組之前設置環境變數
+# 在導入任何模組之前設置環境變數
 os.environ['TORCH_DISABLE_EXTENSIONS'] = '1'
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+os.environ['PYTORCH_JIT'] = '0'
+os.environ['STREAMLIT_WATCHDOG_DISABLE'] = '1'
 warnings.filterwarnings('ignore')
 
-# 修正 torch.classes 路徑問題
-try:
-    import torch
-    # 防止 Streamlit 檢查 torch.classes 路徑
-    if hasattr(torch, '_classes'):
-        torch._classes.__path__ = []
-except Exception:
-    pass
+# 修正 sys.modules 來完全避免 torch.classes 問題
+import types
+
+# 創建一個虛假的 torch.classes 模組來滿足 Streamlit 的路徑檢查
+class FakeTorchClasses:
+    def __init__(self):
+        self.__path__ = []
+        self._path = []
+    
+    def __getattr__(self, name):
+        if name in ['__path__', '_path']:
+            return []
+        return None
+
+# 在導入 torch 之前預先註冊
+if 'torch' not in sys.modules:
+    fake_torch = types.ModuleType('torch')
+    fake_torch.classes = FakeTorchClasses()
+    fake_torch._classes = FakeTorchClasses()
+    sys.modules['torch.classes'] = FakeTorchClasses()
+    sys.modules['torch._classes'] = FakeTorchClasses()
 
 import streamlit as st
 from PIL import Image
@@ -62,33 +77,111 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 延遲導入 PyTorch - 修正兼容性問題
+# 完全禁用 Streamlit 文件監視器來避免 torch.classes 問題
+try:
+    from streamlit.watcher import local_sources_watcher
+    # 修補 get_module_paths 函數
+    original_get_module_paths = local_sources_watcher.LocalSourcesWatcher._get_module_paths
+    
+    def safe_get_module_paths(self, module):
+        """安全的模組路徑獲取，跳過 torch.classes"""
+        try:
+            if hasattr(module, '__name__') and 'torch' in str(module.__name__):
+                return []
+            return original_get_module_paths(self, module)
+        except Exception:
+            return []
+    
+    local_sources_watcher.LocalSourcesWatcher._get_module_paths = safe_get_module_paths
+    
+except Exception:
+    pass
+
+# 另一種方法：直接修補 extract_paths 函數
+try:
+    from streamlit.watcher.local_sources_watcher import extract_paths
+    import importlib
+    
+    def safe_extract_paths(module):
+        """安全的路徑提取，避免 torch.classes 問題"""
+        try:
+            if hasattr(module, '__name__') and 'torch' in str(module.__name__):
+                return []
+            if hasattr(module, '__path__'):
+                if hasattr(module.__path__, '_path'):
+                    return list(module.__path__._path)
+                else:
+                    return list(module.__path__)
+            return []
+        except Exception:
+            return []
+    
+    # 替換原始函數
+    import streamlit.watcher.local_sources_watcher as lsw
+    lsw.extract_paths = safe_extract_paths
+    
+except Exception:
+    pass
+
+# 延遲導入 PyTorch - 完全修正兼容性問題
 @st.cache_resource
 def import_torch_modules():
-    """安全地導入 PyTorch 模組，避免與 Streamlit 衝突"""
+    """安全地導入 PyTorch 模組，完全避免與 Streamlit 衝突"""
     try:
-        # 設置環境變數避免衝突
+        # 進一步設置環境變數
         os.environ.setdefault('TORCH_DISABLE_EXTENSIONS', '1')
         os.environ.setdefault('PYTORCH_JIT', '0')
+        os.environ.setdefault('TORCH_SHOW_CPP_STACKTRACES', '0')
+        
+        # 禁用 Streamlit 的模組監視
+        if hasattr(st, 'config'):
+            try:
+                st.config.set_option('server.fileWatcherType', 'none')
+            except:
+                pass
         
         import torch
         import torch.nn as nn
         import torchvision.transforms as transforms
         
-        # 修正 torch.classes 問題
-        if hasattr(torch, '_classes') and hasattr(torch._classes, '__path__'):
+        # 完全修正 torch.classes 問題
+        if hasattr(torch, '_classes'):
             try:
-                torch._classes.__path__ = []
+                # 創建一個安全的 __path__ 屬性
+                class SafePath:
+                    def __init__(self):
+                        self._path = []
+                    
+                    def __iter__(self):
+                        return iter([])
+                    
+                    def __getitem__(self, index):
+                        raise IndexError("No paths available")
+                    
+                    def __len__(self):
+                        return 0
+                
+                torch._classes.__path__ = SafePath()
+                
+            except Exception as e:
+                pass
+        
+        # 同樣處理其他可能的問題模組
+        if hasattr(torch, 'classes'):
+            try:
+                torch.classes.__path__ = []
             except:
                 pass
                 
         return torch, nn, transforms
+        
     except ImportError as e:
         st.error(f"PyTorch 導入失敗: {e}")
         st.info("請安裝 PyTorch: pip install torch torchvision")
         return None, None, None
+        
     except Exception as e:
-        st.warning(f"PyTorch 配置警告: {e}")
+        st.warning(f"PyTorch 配置警告 (可忽略): {str(e)[:100]}...")
         # 嘗試基本導入
         try:
             import torch
@@ -96,6 +189,7 @@ def import_torch_modules():
             import torchvision.transforms as transforms
             return torch, nn, transforms
         except:
+            st.info("運行於無 AI 模式")
             return None, None, None
 
 # 模型配置 - 適配 Streamlit Cloud
@@ -889,81 +983,80 @@ def render_compact_header(predictor):
     """渲染緊湊的頂部區域"""
     st.markdown('<div class="compact-header">', unsafe_allow_html=True)
     
-    # 主標題 - 最大字體，特殊設計
-    st.markdown('''
-    <div style="
-        text-align: center; 
-        margin-bottom: 25px;
-        background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
-        padding: 25px 30px;
-        border-radius: 20px;
-        border: 3px solid #3498db;
-        box-shadow: 0 8px 30px rgba(52, 152, 219, 0.3);
-        position: relative;
-        overflow: hidden;
-    ">
+    # 主標題 - 修正雲端顯示問題，添加後備方案
+    try:
+        st.markdown('''
         <div style="
-            position: absolute;
-            top: -50px;
-            left: -50px;
-            width: 100px;
-            height: 100px;
-            background: radial-gradient(circle, rgba(52,152,219,0.3), transparent);
-            border-radius: 50%;
-        "></div>
-        <div style="
-            position: absolute;
-            bottom: -30px;
-            right: -30px;
-            width: 80px;
-            height: 80px;
-            background: radial-gradient(circle, rgba(39,174,96,0.2), transparent);
-            border-radius: 50%;
-        "></div>
-        <h1 style="
-            font-size: 3rem;
-            font-weight: 900;
-            margin: 0 0 10px 0;
-            background: linear-gradient(45deg, #3498db, #27ae60, #2ecc71);
-            background-size: 300% 300%;
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: gradientShift 4s ease-in-out infinite;
-            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            text-align: center; 
+            margin-bottom: 25px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            padding: 25px 30px;
+            border-radius: 20px;
+            border: 3px solid #3498db;
+            box-shadow: 0 8px 30px rgba(52, 152, 219, 0.3);
             position: relative;
-            z-index: 2;
-            letter-spacing: 2px;
-        ">🎯 AI驗證碼識別工具</h1>
-        <p style="
-            font-size: 1.2rem;
-            color: #3498db;
-            margin: 0;
-            font-weight: 600;
-            position: relative;
-            z-index: 2;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-        ">CRNN模型 | 4位大寫英文字母識別</p>
-        <div style="
-            width: 60px;
-            height: 4px;
-            background: linear-gradient(90deg, #3498db, #27ae60);
-            margin: 15px auto 0;
-            border-radius: 2px;
-            position: relative;
-            z-index: 2;
-        "></div>
-    </div>
-    
-    <style>
-    @keyframes gradientShift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-    </style>
-    ''', unsafe_allow_html=True)
+            overflow: hidden;
+        ">
+            <div style="
+                position: absolute;
+                top: -50px;
+                left: -50px;
+                width: 100px;
+                height: 100px;
+                background: radial-gradient(circle, rgba(52,152,219,0.3), transparent);
+                border-radius: 50%;
+            "></div>
+            <div style="
+                position: absolute;
+                bottom: -30px;
+                right: -30px;
+                width: 80px;
+                height: 80px;
+                background: radial-gradient(circle, rgba(39,174,96,0.2), transparent);
+                border-radius: 50%;
+            "></div>
+            <h1 style="
+                font-size: 2.5rem;
+                font-weight: 900;
+                margin: 0 0 10px 0;
+                color: #3498db;
+                position: relative;
+                z-index: 2;
+                letter-spacing: 1px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+                line-height: 1.2;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            ">🎯 AI驗證碼識別工具</h1>
+            <p style="
+                font-size: 1rem;
+                color: #27ae60;
+                margin: 0;
+                font-weight: 600;
+                position: relative;
+                z-index: 2;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            ">CRNN模型 | 4位大寫英文字母識別</p>
+            <div style="
+                width: 60px;
+                height: 4px;
+                background: linear-gradient(90deg, #3498db, #27ae60);
+                margin: 15px auto 0;
+                border-radius: 2px;
+                position: relative;
+                z-index: 2;
+            "></div>
+        </div>
+        ''', unsafe_allow_html=True)
+    except Exception:
+        # 後備純文字標題
+        st.markdown("""
+        <div style="text-align: center; padding: 20px; background: #1a1a2e; border-radius: 15px; margin-bottom: 20px;">
+            <h1 style="color: #3498db; font-size: 2rem; margin: 0;">🎯 AI驗證碼識別工具</h1>
+            <p style="color: #27ae60; font-size: 1rem; margin: 10px 0 0 0;">CRNN模型 | 4位大寫英文字母識別</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # AI狀態 - 單行顯示
     if predictor is not None:
