@@ -69,6 +69,23 @@ def safe_rerun():
     except Exception as e:
         pass
 
+def safe_image_display(image, caption=None):
+    """安全的圖片顯示函數，兼容不同版本的Streamlit"""
+    try:
+        # 嘗試新版本參數 (Streamlit >= 1.18.0)
+        st.image(image, use_container_width=True, caption=caption)
+    except TypeError:
+        # 回退到舊版本參數 (Streamlit < 1.18.0)
+        try:
+            st.image(image, use_column_width=True, caption=caption)
+        except TypeError:
+            # 最基本的顯示方式
+            st.image(image, caption=caption)
+    except Exception as e:
+        st.error(f"圖片顯示錯誤: {e}")
+        if caption:
+            st.text(f"圖片: {caption}")
+
 # 頁面配置
 st.set_page_config(
     page_title="CRNN AI Tool",  # 瀏覽器標籤簡潔標題
@@ -575,7 +592,22 @@ st.markdown("""
         outline: none !important;
     }
     
-    /* Metric 組件文字顏色修正 */
+    /* Progress 條文字顏色修正 */
+    .stProgress .stProgress-text {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.7) !important;
+    }
+    
+    /* 確保所有 info/warning/error 文字都是白色 */
+    .stAlert {
+        color: #ffffff !important;
+    }
+    
+    .stAlert [data-testid="alertContent"] {
+        color: #ffffff !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.7) !important;
+    }
     .stMetric {
         background: rgba(52, 152, 219, 0.1) !important;
         border: 1px solid rgba(52, 152, 219, 0.3) !important;
@@ -774,7 +806,8 @@ def init_session_state():
         'folder_path': "./massive_real_captchas",  # Streamlit Cloud 預設路徑
         'temp_label': "",
         'list_page': 0,
-        'initialized': True
+        'initialized': True,
+        'streamlit_version': st.__version__  # 記錄 Streamlit 版本
     }
     
     for key, default_value in defaults.items():
@@ -946,28 +979,36 @@ def perform_batch_ai_prediction(predictor):
         st.session_state.temp_label = get_default_label_for_current_image()
 
 def get_default_label_for_current_image():
+    """獲取當前圖片的預設標籤 - 優先使用原始標籤"""
     if not st.session_state.folder_images:
         return ""
     
     current_idx = st.session_state.current_index
     current_img = st.session_state.folder_images[current_idx]
     
-    # 如果已經有有效的temp_label，使用它
+    # 如果已經有有效的temp_label，並且用戶正在編輯，保持它
     if (hasattr(st.session_state, 'temp_label') and 
         st.session_state.temp_label and 
-        SimpleCaptchaCorrector.validate_label(st.session_state.temp_label)):
+        SimpleCaptchaCorrector.validate_label(st.session_state.temp_label) and
+        st.session_state.get('user_editing', False)):
         return st.session_state.temp_label
     
-    # 使用AI預測結果（高置信度）
+    # 1. 優先使用從檔名提取的原始標籤
+    original_label = current_img.get('original_label', '')
+    if original_label and SimpleCaptchaCorrector.validate_label(original_label):
+        return original_label
+    
+    # 2. 如果沒有原始標籤，嘗試從檔名重新提取
+    extracted_label = SimpleCaptchaCorrector.extract_label_from_filename(current_img['name'])
+    if extracted_label and SimpleCaptchaCorrector.validate_label(extracted_label):
+        return extracted_label
+    
+    # 3. 最後才使用AI預測結果（僅當置信度很高時）
     if current_idx in st.session_state.ai_predictions:
         ai_pred = st.session_state.ai_predictions[current_idx]
-        if (ai_pred['confidence'] > 0.7 and 
+        if (ai_pred['confidence'] > 0.9 and 
             SimpleCaptchaCorrector.validate_label(ai_pred['text'])):
             return ai_pred['text']
-    
-    # 使用從檔名提取的標籤
-    if current_img.get('original_label'):
-        return current_img['original_label']
     
     return ""
 
@@ -1516,8 +1557,8 @@ def render_maximized_work_area(predictor):
                         </div>
                         ''', unsafe_allow_html=True)
                         
-                        # 圖片顯示
-                        st.image(image, use_container_width=True)
+                        # 圖片顯示 - 使用兼容性函數
+                        safe_image_display(image)
                         
                         # 快速信息 - 修正所有文字顏色為白色
                         current_idx = st.session_state.current_index
@@ -1636,7 +1677,21 @@ def render_maximized_work_area(predictor):
                         ai_pred = st.session_state.ai_predictions[current_idx]
                         confidence = ai_pred['confidence']
                         
-                        st.info(f"AI結果: **{ai_pred['text']}**")
+                        # 使用自定義樣式顯示AI結果，確保白色文字
+                        st.markdown(f'''
+                        <div style="
+                            background: rgba(52, 152, 219, 0.15);
+                            border: 2px solid #3498db;
+                            border-radius: 8px;
+                            padding: 12px;
+                            margin: 8px 0;
+                            text-align: center;
+                        ">
+                            <div style="color: #ffffff; font-size: 0.9rem; font-weight: 500; text-shadow: 1px 1px 2px rgba(0,0,0,0.7);">AI結果</div>
+                            <div style="color: #ffffff; font-size: 1.8rem; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); margin: 5px 0;">{ai_pred['text']}</div>
+                        </div>
+                        ''', unsafe_allow_html=True)
+                        
                         st.progress(confidence, text=f"置信度: {confidence:.1%}")
                         
                         if st.button("🎯 使用AI結果", key=f"ctrl_use_ai_{current_idx}", use_container_width=True):
@@ -1649,7 +1704,18 @@ def render_maximized_work_area(predictor):
                             else:
                                 st.warning("⚠️ AI結果格式無效")
                     else:
-                        st.info("等待AI識別...")
+                        st.markdown(f'''
+                        <div style="
+                            background: rgba(108, 117, 125, 0.15);
+                            border: 2px solid #6c757d;
+                            border-radius: 8px;
+                            padding: 12px;
+                            margin: 8px 0;
+                            text-align: center;
+                        ">
+                            <div style="color: #ffffff; font-size: 1rem; font-weight: 500; text-shadow: 1px 1px 2px rgba(0,0,0,0.7);">等待AI識別...</div>
+                        </div>
+                        ''', unsafe_allow_html=True)
                     
                     # 2. 標籤編輯
                     st.markdown("#### ✏️ 標籤編輯")
@@ -1815,8 +1881,15 @@ def main():
             st.write(f"folder_path: {st.session_state.folder_path}")
             st.write(f"PyTorch 可用: {predictor is not None}")
             
-            # 顯示 Python 環境信息
+            # 顯示版本信息
+            st.write("**版本信息:**")
+            st.write(f"Streamlit 版本: {st.__version__}")
             st.write(f"Python 版本: {sys.version}")
+            
+            # 檢查 Streamlit 功能支援
+            has_container_width = hasattr(st.image, '__code__') and 'use_container_width' in st.image.__code__.co_varnames
+            st.write(f"支援 use_container_width: {has_container_width}")
+            
             if predictor and predictor.torch:
                 st.write(f"PyTorch 版本: {predictor.torch.__version__}")
                 st.write(f"CUDA 可用: {predictor.torch.cuda.is_available()}")
