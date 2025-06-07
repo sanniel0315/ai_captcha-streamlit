@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 
 # 頁面配置
 st.set_page_config(
-    page_title="AI驗證碼識別工具",  # 移除emoji，只用於瀏覽器標籤
+    page_title="CRNN AI Tool",  # 瀏覽器標籤簡潔標題
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -93,41 +93,95 @@ st.markdown("""
     .main > div:first-child {margin-top: 0 !important; padding-top: 0 !important;}
     .block-container {padding-top: 0 !important; margin-top: 0 !important;}
     
-    /* 全局樣式 - 深藍色主題，最小化間距 */
-    .main .block-container {
-        padding: 0.5rem !important;
-        max-width: 100% !important;
+    /* ========== 其他界面顏色區域 ========== */
+    
+    /* 全局背景顏色 */
+    .stApp {
+        background: linear-gradient(135deg, #1a1a2e, #16213e) !important;  /* 🎨 這裡改整體背景 */
+        color: #ecf0f1;  /* 🎨 這裡改全局文字顏色 */
     }
     
-    .stApp {
-        background: linear-gradient(135deg, #1a1a2e, #16213e) !important;
-        color: #ecf0f1;
+    /* 頂部框架顏色 */
+    .compact-header {
+        background: linear-gradient(135deg, #2c3e50, #34495e);  /* 🎨 這裡改頂部框架背景 */
+        border: 2px solid #34495e;  /* 🎨 這裡改頂部框架邊框 */
+        box-shadow: 0 6px 25px rgba(0,0,0,0.3);  /* 🎨 這裡改頂部框架陰影 */
+    }
+    
+    /* 輸入框顏色 */
+    .stTextInput > div > div > input {
+        background: white !important;  /* 🎨 這裡改輸入框背景 */
+        color: #2c3e50 !important;  /* 🎨 這裡改輸入框文字顏色 */
+        border: 3px solid #34495e !important;  /* 🎨 這裡改輸入框邊框 */
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #27ae60 !important;  /* 🎨 改為綠色聚焦邊框 */
+        box-shadow: 0 0 12px rgba(39, 174, 96, 0.4) !important;  /* 🎨 改為綠色聚焦陰影 */
+    }
+    
+    .stTextInput > div > div > input:hover {
+        border-color: #3498db !important;  /* 🎨 這裡改輸入框hover邊框顏色 */
+        box-shadow: 0 0 8px rgba(52, 152, 219, 0.3) !important;  /* 🎨 這裡改hover陰影顏色 */
+    }
+    
+    /* 進度條顏色 - 改為綠色為主 */
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #27ae60, #f39c12, #2ecc71) !important;  /* 🎨 綠色為主的進度條 */
+    }
+    
+    /* 成功/錯誤訊息顏色 */
+    .stSuccess {
+        background: linear-gradient(135deg, rgba(39, 174, 96, 0.15), rgba(46, 204, 113, 0.1)) !important;  /* 🎨 成功訊息背景 */
+        border: 2px solid #27ae60 !important;  /* 🎨 成功訊息邊框 */
+        color: #27ae60 !important;  /* 🎨 成功訊息文字顏色 */
+        box-shadow: 0 2px 8px rgba(39, 174, 96, 0.2) !important;
+    }
+    
+    .stError {
+        background: linear-gradient(135deg, rgba(39, 174, 96, 0.15), rgba(46, 204, 113, 0.1)) !important;  /* 🎨 改為綠色系錯誤訊息 */
+        border: 2px solid #1e8449 !important;  /* 🎨 改為深綠色邊框 */
+        color: #1e8449 !important;  /* 🎨 改為深綠色文字 */
+        box-shadow: 0 2px 8px rgba(39, 174, 96, 0.2) !important;
+    }
+    
+    /* 狀態指示器顏色 */
+    .status-compact {
+        background: rgba(39, 174, 96, 0.15);  /* 🎨 狀態指示器背景 */
+        border: 1px solid #27ae60;  /* 🎨 狀態指示器邊框 */
+        color: #ecf0f1;  /* 🎨 狀態指示器文字顏色 */
+    }
+    
+    .status-compact.error {
+        background: rgba(231, 76, 60, 0.15);  /* 🎨 錯誤狀態背景 */
+        border-color: #e74c3c;  /* 🎨 錯誤狀態邊框 */
+        color: #e74c3c;  /* 🎨 錯誤狀態文字顏色 */
     }
     
     /* 緊湊的頂部區域 */
     .compact-header {
         background: linear-gradient(135deg, #2c3e50, #34495e);
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin: 8px 0 16px 0;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-        border: 1px solid #34495e;
+        border-radius: 15px;
+        padding: 20px 25px;
+        margin: 10px 0 20px 0;
+        box-shadow: 0 6px 25px rgba(0,0,0,0.3);
+        border: 2px solid #34495e;
     }
     
-    .compact-title {
-        font-size: 1.6rem;
+    /* 主標題現在使用內聯樣式，這些類別用於其他地方 */
+    .section-title {
+        font-size: 1.4rem;
         font-weight: bold;
         color: #ecf0f1;
-        margin: 0 0 6px 0;
+        margin: 15px 0 10px 0;
         text-align: center;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     
-    .compact-subtitle {
-        font-size: 0.9rem;
+    .section-subtitle {
+        font-size: 0.85rem;
         color: #3498db;
         text-align: center;
-        margin: 0;
+        margin: 0 0 15px 0;
         font-weight: 500;
     }
     
@@ -224,94 +278,63 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(233, 69, 96, 0.3);
     }
     
-    /* 按鈕樣式 - 增強互動 */
+    /* ========== 按鈕顏色區域 ========== */
+    
+    /* 一般按鈕顏色 */
     .stButton > button {
-        background: linear-gradient(135deg, #34495e, #2c3e50) !important;
-        color: white !important;
+        background: linear-gradient(135deg, #34495e, #2c3e50) !important;  /* 🎨 這裡改一般按鈕背景 */
+        color: white !important;  /* 🎨 這裡改一般按鈕文字顏色 */
         border: none !important;
-        border-radius: 8px !important;
-        padding: 8px 16px !important;
-        font-size: 0.9rem !important;
+        border-radius: 6px !important;
+        padding: 6px 8px !important;
+        font-size: 0.75rem !important;
         transition: all 0.3s ease !important;
         width: 100% !important;
-        min-height: 36px !important;
+        min-height: 32px !important;
         position: relative !important;
         overflow: hidden !important;
+        line-height: 1.2 !important;
     }
     
     .stButton > button:hover {
-        background: linear-gradient(135deg, #3498db, #2980b9) !important;
+        background: linear-gradient(135deg, #3498db, #2980b9) !important;  /* 🎨 這裡改hover時的顏色 */
         transform: translateY(-1px) !important;
-        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;  /* 🎨 這裡改hover陰影顏色 */
     }
     
     .stButton > button:active {
         transform: translateY(0px) !important;
-        box-shadow: 0 2px 6px rgba(52, 152, 219, 0.4) !important;
+        box-shadow: 0 2px 6px rgba(52, 152, 219, 0.4) !important;  /* 🎨 這裡改點擊陰影顏色 */
     }
     
-    /* 按鈕水波紋效果 */
-    .stButton > button:before {
-        content: '' !important;
-        position: absolute !important;
-        top: 50% !important;
-        left: 50% !important;
-        width: 0 !important;
-        height: 0 !important;
-        background: rgba(255, 255, 255, 0.2) !important;
-        border-radius: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        transition: width 0.2s ease, height 0.2s ease !important;
-    }
-    
-    .stButton > button:active:before {
-        width: 80px !important;
-        height: 80px !important;
-    }
-    
-    /* 主要按鈕 - 增強互動效果 */
+    /* 主要按鈕顏色（保存按鈕等） - 改為綠色系 */
     div[data-testid="stButton"] button[kind="primary"] {
-        background: linear-gradient(135deg, #e94560, #c0392b) !important;
+        background: linear-gradient(135deg, #27ae60, #2ecc71) !important;  /* 🎨 改為綠色漸變 */
         font-weight: bold !important;
         font-size: 1rem !important;
         padding: 12px 20px !important;
         border-radius: 8px !important;
         border: none !important;
-        color: white !important;
+        color: white !important;  /* 🎨 這裡改主要按鈕文字顏色 */
         transition: all 0.3s ease !important;
-        box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3) !important;
+        box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3) !important;  /* 🎨 改為綠色陰影 */
         position: relative !important;
         overflow: hidden !important;
     }
     
     div[data-testid="stButton"] button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #c0392b, #a93226) !important;
+        background: linear-gradient(135deg, #2ecc71, #1e8449) !important;  /* 🎨 改為綠色hover */
         transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(233, 69, 96, 0.4) !important;
+        box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4) !important;
     }
     
-    div[data-testid="stButton"] button[kind="primary"]:active {
-        transform: translateY(0px) !important;
-        box-shadow: 0 2px 8px rgba(233, 69, 96, 0.5) !important;
+    /* 按鈕水波紋效果顏色 */
+    .stButton > button:before {
+        background: rgba(255, 255, 255, 0.2) !important;  /* 🎨 這裡改水波紋顏色 */
     }
     
-    /* 按鈕點擊動畫效果 */
     div[data-testid="stButton"] button[kind="primary"]:before {
-        content: '' !important;
-        position: absolute !important;
-        top: 50% !important;
-        left: 50% !important;
-        width: 0 !important;
-        height: 0 !important;
-        background: rgba(255, 255, 255, 0.3) !important;
-        border-radius: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        transition: width 0.3s ease, height 0.3s ease !important;
-    }
-    
-    div[data-testid="stButton"] button[kind="primary"]:active:before {
-        width: 100px !important;
-        height: 100px !important;
+        background: rgba(255, 255, 255, 0.3) !important;  /* 🎨 這裡改主要按鈕水波紋顏色 */
     }
     
     /* 輸入框 - 更大字體，與標題匹配 */
@@ -422,6 +445,34 @@ st.markdown("""
         background: linear-gradient(90deg, #e74c3c, #f39c12, #27ae60) !important;
     }
     
+    /* 三欄標題特殊效果 */
+    .panel-title-left {
+        background: linear-gradient(135deg, #27ae60, #2ecc71) !important;
+        border-left: 5px solid #1e8449 !important;
+    }
+    
+    .panel-title-center {
+        background: linear-gradient(135deg, #3498db, #2980b9) !important;
+        border-top: 5px solid #1f618d !important;
+        border-bottom: 5px solid #1f618d !important;
+    }
+    
+    .panel-title-right {
+        background: linear-gradient(135deg, #e74c3c, #c0392b) !important;
+        border-right: 5px solid #a93226 !important;
+    }
+    
+    /* 標題動畫效果 */
+    .panel-title-center:hover {
+        transform: scale(1.02) !important;
+        transition: transform 0.3s ease !important;
+    }
+    
+    .panel-title-left:hover, .panel-title-right:hover {
+        transform: translateY(-2px) !important;
+        transition: transform 0.3s ease !important;
+    }
+    
     /* 成功/錯誤訊息樣式 - 增強視覺效果 */
     .stSuccess, .stError, .stWarning, .stInfo {
         padding: 10px 15px !important;
@@ -458,15 +509,30 @@ st.markdown("""
         }
     }
     
-    /* 保存按鈕成功狀態 */
+    /* 保存按鈕成功狀態 - 改為綠色 */
     .stButton > button.success-pulse {
         animation: successPulse 0.6s ease !important;
     }
     
     @keyframes successPulse {
         0% { transform: scale(1); }
-        50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(39, 174, 96, 0.6); }
+        50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(39, 174, 96, 0.6); }  /* 🎨 改為綠色脈衝 */
         100% { transform: scale(1); }
+    }
+    
+    /* 確保沒有遺漏的紅色hover效果 */
+    .stWarning {
+        background: linear-gradient(135deg, rgba(243, 156, 18, 0.15), rgba(230, 126, 34, 0.1)) !important;
+        border: 2px solid #f39c12 !important;
+        color: #f39c12 !important;
+        box-shadow: 0 2px 8px rgba(243, 156, 18, 0.2) !important;
+    }
+    
+    .stInfo {
+        background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(41, 128, 185, 0.1)) !important;
+        border: 2px solid #3498db !important;
+        color: #3498db !important;
+        box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -647,6 +713,7 @@ def init_session_state():
         'ai_accurate_count': 0,
         'folder_path': r"C:\Users\User\Desktop\Python3.8\02_emnist\debug_captchas_augmented_all_split\test",
         'temp_label': "",
+        'list_page': 0,  # 添加列表分頁狀態
         'initialized': True
     }
     
@@ -777,6 +844,20 @@ def get_default_label_for_current_image():
     
     return ""
 
+def navigate_to_image(new_index: int):
+    """導航到指定的圖片索引，並自動調整分頁"""
+    if not st.session_state.folder_images:
+        return
+    
+    if 0 <= new_index < len(st.session_state.folder_images):
+        st.session_state.current_index = new_index
+        st.session_state.temp_label = get_default_label_for_current_image()
+        
+        # 自動跳轉到包含該圖片的頁面
+        IMAGES_PER_PAGE = 20
+        required_page = new_index // IMAGES_PER_PAGE
+        st.session_state.list_page = required_page
+
 def save_current_file(new_label: str):
     if not st.session_state.folder_images:
         return False
@@ -829,12 +910,80 @@ def render_compact_header(predictor):
     """渲染緊湊的頂部區域"""
     st.markdown('<div class="compact-header">', unsafe_allow_html=True)
     
-    # 標題 - 放在框內
+    # 主標題 - 最大字體，特殊設計
     st.markdown('''
-    <div style="text-align: center; margin-bottom: 15px;">
-        <div class="compact-title">🎯 AI驗證碼識別工具</div>
-        <div class="compact-subtitle">CRNN模型 | 4位大寫英文字母識別</div>
+    <div style="
+        text-align: center; 
+        margin-bottom: 25px;
+        background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+        padding: 25px 30px;
+        border-radius: 20px;
+        border: 3px solid #3498db;
+        box-shadow: 0 8px 30px rgba(52, 152, 219, 0.3);
+        position: relative;
+        overflow: hidden;
+    ">
+        <div style="
+            position: absolute;
+            top: -50px;
+            left: -50px;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(52,152,219,0.3), transparent);
+            border-radius: 50%;
+        "></div>
+        <div style="
+            position: absolute;
+            bottom: -30px;
+            right: -30px;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, rgba(39,174,96,0.2), transparent);  /* 🎨 改為綠色裝飾圓形 */
+            border-radius: 50%;
+        "></div>
+        <h1 style="
+            font-size: 3rem;
+            font-weight: 900;
+            margin: 0 0 10px 0;
+            background: linear-gradient(45deg, #3498db, #27ae60, #2ecc71);  /* 🎨 改為藍綠漸變，移除紅色 */
+            background-size: 300% 300%;
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientShift 4s ease-in-out infinite;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 2;
+            letter-spacing: 2px;
+        ">🎯 AI驗證碼識別工具</h1>
+        <p style="
+            font-size: 1.2rem;
+            color: #3498db;
+            margin: 0;
+            font-weight: 600;
+            position: relative;
+            z-index: 2;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        ">CRNN模型 | 4位大寫英文字母識別</p>
+        <div style="
+            width: 60px;
+            height: 4px;
+            background: linear-gradient(90deg, #3498db, #27ae60);  /* 🎨 改為藍綠漸變，移除紅色 */
+            margin: 15px auto 0;
+            border-radius: 2px;
+            position: relative;
+            z-index: 2;
+        "></div>
     </div>
+    
+    <style>
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    </style>
     ''', unsafe_allow_html=True)
     
     # AI狀態 - 單行顯示
@@ -988,52 +1137,189 @@ def render_maximized_work_area(predictor):
         # 左側：圖片列表面板
         with col1:
             with st.container():
-                st.markdown("### 📋 圖片列表")
+                # 標題 - 左側面板，🎨 綠色主題（可在這裡改顏色）
+                st.markdown('''
+                <div style="
+                    background: linear-gradient(135deg, #27ae60, #2ecc71);  /* 🎨 左側標題背景漸變 */
+                    color: white;  /* 🎨 左側標題文字顏色 */
+                    text-align: center;
+                    padding: 14px 18px;
+                    border-radius: 10px;
+                    margin-bottom: 18px;
+                    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);  /* 🎨 左側標題陰影顏色 */
+                    border: 2px solid #27ae60;  /* 🎨 左側標題邊框顏色 */
+                ">
+                    <h2 style="
+                        font-size: 1.4rem;
+                        font-weight: bold;
+                        margin: 0;
+                        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    ">📋 圖片列表</h2>
+                    <p style="
+                        font-size: 0.8rem;
+                        margin: 4px 0 0 0;
+                        opacity: 0.9;
+                    ">IMAGE LIST</p>
+                </div>
+                ''', unsafe_allow_html=True)
                 
-                # 載入統計
+                # 載入統計和分頁信息
                 total_count = len(st.session_state.folder_images)
                 ai_count = len(st.session_state.ai_predictions)
-                st.caption(f"總數: {total_count} | AI識別: {ai_count}")
+                
+                # 分頁設置
+                IMAGES_PER_PAGE = 20
+                total_pages = (total_count + IMAGES_PER_PAGE - 1) // IMAGES_PER_PAGE if total_count > 0 else 1
+                current_page = st.session_state.get('list_page', 0)
+                
+                # 確保頁碼有效
+                if current_page >= total_pages:
+                    current_page = max(0, total_pages - 1)
+                    st.session_state.list_page = current_page
+                
+                # 顯示統計和分頁信息
+                st.caption(f"總數: {total_count} | AI識別: {ai_count} | 第 {current_page + 1}/{total_pages} 頁")
+                
+                # 分頁按鈕
+                page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
+                with page_col1:
+                    if st.button("⬅️ 上一頁", disabled=current_page <= 0, key="list_prev_page", use_container_width=True):
+                        st.session_state.list_page = max(0, current_page - 1)
+                        safe_rerun()
+                with page_col2:
+                    st.markdown(f'<div style="text-align: center; padding: 6px; color: #bdc3c7; font-size: 0.8rem;">頁 {current_page + 1} / {total_pages}</div>', unsafe_allow_html=True)
+                with page_col3:
+                    if st.button("下一頁 ➡️", disabled=current_page >= total_pages - 1, key="list_next_page", use_container_width=True):
+                        st.session_state.list_page = min(total_pages - 1, current_page + 1)
+                        safe_rerun()
+                
+                # 計算當前頁的圖片範圍
+                start_idx = current_page * IMAGES_PER_PAGE
+                end_idx = min(start_idx + IMAGES_PER_PAGE, total_count)
+                page_images = list(range(start_idx, end_idx))
                 
                 # 創建滾動容器
                 list_container = st.container()
                 with list_container:
-                    # 圖片列表
-                    display_count = min(50, total_count)
-                    
-                    for i in range(display_count):
-                        img_info = st.session_state.folder_images[i]
-                        ai_pred = st.session_state.ai_predictions.get(i, {})
-                        original_label = img_info.get('original_label', '')
-                        is_current = i == st.session_state.current_index
+                    # 圖片列表 - 兩列顯示，每頁20張
+                    if page_images:
+                        # 計算需要多少行（每行2個）
+                        rows = (len(page_images) + 1) // 2
                         
-                        # 緊湊的顯示格式
-                        original_display = original_label if original_label else "----"
-                        ai_display = ai_pred.get('text', '----') if ai_pred else '----'
-                        
-                        # 顯示置信度
-                        confidence = ai_pred.get('confidence', 0) if ai_pred else 0
-                        conf_indicator = f"({confidence:.0%})" if confidence > 0 else ""
-                        
-                        display_text = f"{original_display}|{ai_display}{conf_indicator}"
-                        
-                        button_type = "primary" if is_current else "secondary"
-                        
-                        if st.button(
-                            display_text,
-                            key=f"img_btn_{i}_{total_count}",
-                            help=f"#{i+1}: {img_info['name']}\n原始: {original_label or '無'}\nAI: {ai_pred.get('text', '未識別')}",
-                            type=button_type,
-                            use_container_width=True
-                        ):
-                            st.session_state.current_index = i
-                            st.session_state.temp_label = get_default_label_for_current_image()
-                            safe_rerun()
+                        for row in range(rows):
+                            # 創建兩列
+                            img_col1, img_col2 = st.columns(2, gap="small")
+                            
+                            # 左列圖片
+                            left_idx_in_page = row * 2
+                            if left_idx_in_page < len(page_images):
+                                left_idx = page_images[left_idx_in_page]
+                                with img_col1:
+                                    img_info = st.session_state.folder_images[left_idx]
+                                    ai_pred = st.session_state.ai_predictions.get(left_idx, {})
+                                    original_label = img_info.get('original_label', '')
+                                    is_current = left_idx == st.session_state.current_index
+                                    
+                                    # 緊湊的顯示格式
+                                    original_display = original_label if original_label else "----"
+                                    ai_display = ai_pred.get('text', '----') if ai_pred else '----'
+                                    
+                                    # 顯示置信度
+                                    confidence = ai_pred.get('confidence', 0) if ai_pred else 0
+                                    conf_indicator = f"({confidence:.0%})" if confidence > 0 else ""
+                                    
+                                    display_text = f"{original_display}|{ai_display}{conf_indicator}"
+                                    
+                                    button_type = "primary" if is_current else "secondary"
+                                    
+                                    if st.button(
+                                        display_text,
+                                        key=f"img_btn_{left_idx}_{current_page}",
+                                        help=f"#{left_idx+1}: {img_info['name']}\n原始: {original_label or '無'}\nAI: {ai_pred.get('text', '未識別')}",
+                                        type=button_type,
+                                        use_container_width=True
+                                    ):
+                                        navigate_to_image(left_idx)
+                                        safe_rerun()
+                            
+                            # 右列圖片
+                            right_idx_in_page = row * 2 + 1
+                            if right_idx_in_page < len(page_images):
+                                right_idx = page_images[right_idx_in_page]
+                                with img_col2:
+                                    img_info = st.session_state.folder_images[right_idx]
+                                    ai_pred = st.session_state.ai_predictions.get(right_idx, {})
+                                    original_label = img_info.get('original_label', '')
+                                    is_current = right_idx == st.session_state.current_index
+                                    
+                                    # 緊湊的顯示格式
+                                    original_display = original_label if original_label else "----"
+                                    ai_display = ai_pred.get('text', '----') if ai_pred else '----'
+                                    
+                                    # 顯示置信度
+                                    confidence = ai_pred.get('confidence', 0) if ai_pred else 0
+                                    conf_indicator = f"({confidence:.0%})" if confidence > 0 else ""
+                                    
+                                    display_text = f"{original_display}|{ai_display}{conf_indicator}"
+                                    
+                                    button_type = "primary" if is_current else "secondary"
+                                    
+                                    if st.button(
+                                        display_text,
+                                        key=f"img_btn_{right_idx}_{current_page}",
+                                        help=f"#{right_idx+1}: {img_info['name']}\n原始: {original_label or '無'}\nAI: {ai_pred.get('text', '未識別')}",
+                                        type=button_type,
+                                        use_container_width=True
+                                    ):
+                                        navigate_to_image(right_idx)
+                                        safe_rerun()
+                    else:
+                        st.info("此頁沒有圖片")
         
         # 中央：圖片預覽面板
         with col2:
             with st.container():
-                st.markdown("### 🖼️ 驗證碼預覽")
+                # 標題 - 中央面板，🎨 藍色主題（可在這裡改顏色）
+                st.markdown('''
+                <div style="
+                    background: linear-gradient(135deg, #3498db, #2980b9);  /* 🎨 中央標題背景漸變 */
+                    color: white;  /* 🎨 中央標題文字顏色 */
+                    text-align: center;
+                    padding: 16px 22px;
+                    border-radius: 12px;
+                    margin-bottom: 22px;
+                    box-shadow: 0 5px 18px rgba(52, 152, 219, 0.4);  /* 🎨 中央標題陰影顏色 */
+                    border: 3px solid #2980b9;  /* 🎨 中央標題邊框顏色 */
+                    position: relative;
+                    overflow: hidden;
+                ">
+                    <div style="
+                        position: absolute;
+                        top: -50%;
+                        right: -20px;
+                        width: 80px;
+                        height: 80px;
+                        background: rgba(255,255,255,0.1);  /* 🎨 中央標題裝飾圓形顏色 */
+                        border-radius: 50%;
+                    "></div>
+                    <h2 style="
+                        font-size: 1.6rem;
+                        font-weight: bold;
+                        margin: 0;
+                        text-shadow: 0 3px 6px rgba(0,0,0,0.4);
+                        position: relative;
+                        z-index: 2;
+                    ">🖼️ 驗證碼預覽</h2>
+                    <p style="
+                        font-size: 0.85rem;
+                        margin: 6px 0 0 0;
+                        opacity: 0.9;
+                        position: relative;
+                        z-index: 2;
+                        letter-spacing: 1px;
+                    ">CAPTCHA PREVIEW</p>
+                </div>
+                ''', unsafe_allow_html=True)
                 
                 if st.session_state.folder_images:
                     current_img = st.session_state.folder_images[st.session_state.current_index]
@@ -1069,7 +1355,50 @@ def render_maximized_work_area(predictor):
         # 右側：控制面板
         with col3:
             with st.container():
-                st.markdown("### ⚙️ 控制面板")
+                # 標題 - 右側面板，🎨 綠色主題（替換原紅色）
+                st.markdown('''
+                <div style="
+                    background: linear-gradient(135deg, #2ecc71, #27ae60);  /* 🎨 改為綠色漸變背景 */
+                    color: white;  /* 🎨 右側標題文字顏色 */
+                    text-align: center;
+                    padding: 14px 18px;
+                    border-radius: 10px;
+                    margin-bottom: 18px;
+                    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);  /* 🎨 改為綠色陰影 */
+                    border: 2px solid #1e8449;  /* 🎨 改為深綠色邊框 */
+                    position: relative;
+                ">
+                    <div style="
+                        position: absolute;
+                        top: 5px;
+                        right: 5px;
+                        width: 8px;
+                        height: 8px;
+                        background: #3498db;  /* 🎨 改為藍色指示燈形成對比 */
+                        border-radius: 50%;
+                        animation: pulse 2s infinite;
+                    "></div>
+                    <h2 style="
+                        font-size: 1.4rem;
+                        font-weight: bold;
+                        margin: 0;
+                        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    ">⚙️ 控制面板</h2>
+                    <p style="
+                        font-size: 0.8rem;
+                        margin: 4px 0 0 0;
+                        opacity: 0.9;
+                    ">CONTROL PANEL</p>
+                </div>
+                
+                <style>
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                    100% { opacity: 1; }
+                }
+                </style>
+                ''', unsafe_allow_html=True)
                 
                 if st.session_state.folder_images:
                     current_idx = st.session_state.current_index
@@ -1085,7 +1414,7 @@ def render_maximized_work_area(predictor):
                         st.info(f"AI結果: **{ai_pred['text']}**")
                         st.progress(confidence, text=f"置信度: {confidence:.1%}")
                         
-                        if st.button("🎯 使用AI結果", key=f"use_ai_{current_idx}", use_container_width=True):
+                        if st.button("🎯 使用AI結果", key=f"ctrl_use_ai_{current_idx}", use_container_width=True):
                             if SimpleCaptchaCorrector.validate_label(ai_pred['text']):
                                 # 設置AI結果到temp_label
                                 st.session_state.temp_label = ai_pred['text']
@@ -1116,7 +1445,7 @@ def render_maximized_work_area(predictor):
                         value=st.session_state.temp_label,
                         max_chars=4,
                         placeholder="ABCD",
-                        key=f"label_input_{current_idx}_v{update_trigger}",
+                        key=f"ctrl_label_input_{current_idx}_v{update_trigger}",
                         help="輸入4個大寫英文字母作為驗證碼標籤"
                     ).upper()
                     
@@ -1134,11 +1463,11 @@ def render_maximized_work_area(predictor):
                             st.error("❌ 需要4個大寫字母")
                     
                     # 保存按鈕
-                    if st.button("💾 保存修改", disabled=not is_valid, type="primary", key=f"save_{current_idx}", use_container_width=True):
+                    if st.button("💾 保存修改", disabled=not is_valid, type="primary", key=f"ctrl_save_{current_idx}", use_container_width=True):
                         if save_current_file(new_label):
                             if current_idx < len(st.session_state.folder_images) - 1:
-                                st.session_state.current_index = current_idx + 1
-                                st.session_state.temp_label = get_default_label_for_current_image()
+                                new_idx = current_idx + 1
+                                navigate_to_image(new_idx)
                                 st.balloons()
                                 safe_rerun()
                             else:
@@ -1151,33 +1480,52 @@ def render_maximized_work_area(predictor):
                     nav_col1, nav_col2 = st.columns(2)
                     with nav_col1:
                         if st.button("⬅️ 上一張", disabled=current_idx == 0, key=f"prev_{current_idx}", use_container_width=True):
-                            st.session_state.current_index = current_idx - 1
-                            st.session_state.temp_label = get_default_label_for_current_image()
+                            new_idx = current_idx - 1
+                            navigate_to_image(new_idx)
                             safe_rerun()
                     with nav_col2:
                         last_idx = len(st.session_state.folder_images) - 1
                         if st.button("下一張 ➡️", disabled=current_idx >= last_idx, key=f"next_{current_idx}", use_container_width=True):
-                            st.session_state.current_index = current_idx + 1
-                            st.session_state.temp_label = get_default_label_for_current_image()
+                            new_idx = current_idx + 1
+                            navigate_to_image(new_idx)
                             safe_rerun()
                     
-                    # 進度
+                    # 導航區塊
+                    st.markdown("#### 🧭 導航")
+                    
+                    nav_col1, nav_col2 = st.columns(2)
+                    with nav_col1:
+                        if st.button("⬅️ 上一張", disabled=current_idx == 0, key=f"nav_prev_{current_idx}", use_container_width=True):
+                            new_idx = current_idx - 1
+                            navigate_to_image(new_idx)
+                            safe_rerun()
+                    with nav_col2:
+                        last_idx = len(st.session_state.folder_images) - 1
+                        if st.button("下一張 ➡️", disabled=current_idx >= last_idx, key=f"nav_next_{current_idx}", use_container_width=True):
+                            new_idx = current_idx + 1
+                            navigate_to_image(new_idx)
+                            safe_rerun()
+                    
+                    # 進度顯示
                     progress = (current_idx + 1) / len(st.session_state.folder_images)
                     st.progress(progress, text=f"進度: {current_idx + 1}/{len(st.session_state.folder_images)}")
                     
-                    # 統計
+                    # 統計區塊
                     st.markdown("#### 📊 統計")
                     
-                    stat_col1, stat_col2 = st.columns(2)
-                    with stat_col1:
+                    # 使用簡潔的metric顯示
+                    col_stat1, col_stat2 = st.columns(2)
+                    with col_stat1:
                         st.metric("總檔案", len(st.session_state.folder_images))
+                    with col_stat2:
                         st.metric("已修正", st.session_state.modified_count)
-                    with stat_col2:
-                        if st.session_state.modified_count > 0:
-                            ai_acc = (st.session_state.ai_accurate_count / st.session_state.modified_count) * 100
-                            st.metric("AI準確率", f"{ai_acc:.0f}%")
-                        else:
-                            st.metric("AI準確率", "0%")
+                    
+                    # AI準確率單獨顯示
+                    if st.session_state.modified_count > 0:
+                        ai_acc = (st.session_state.ai_accurate_count / st.session_state.modified_count) * 100
+                        st.metric("AI準確率", f"{ai_acc:.0f}%")
+                    else:
+                        st.metric("AI準確率", "0%")
                     
                     # 快速跳轉
                     if len(st.session_state.folder_images) > 10:
@@ -1185,15 +1533,13 @@ def render_maximized_work_area(predictor):
                         
                         jump_col1, jump_col2 = st.columns(2)
                         with jump_col1:
-                            if st.button("🏠 首張", disabled=current_idx == 0, key=f"jump_first_{current_idx}", use_container_width=True):
-                                st.session_state.current_index = 0
-                                st.session_state.temp_label = get_default_label_for_current_image()
+                            if st.button("🏠 首張", disabled=current_idx == 0, key=f"nav_jump_first_{current_idx}", use_container_width=True):
+                                navigate_to_image(0)
                                 safe_rerun()
                         with jump_col2:
                             last_idx = len(st.session_state.folder_images) - 1
-                            if st.button("🏁 末張", disabled=current_idx == last_idx, key=f"jump_last_{current_idx}", use_container_width=True):
-                                st.session_state.current_index = last_idx
-                                st.session_state.temp_label = get_default_label_for_current_image()
+                            if st.button("🏁 末張", disabled=current_idx == last_idx, key=f"nav_jump_last_{current_idx}", use_container_width=True):
+                                navigate_to_image(last_idx)
                                 safe_rerun()
 
 def main():
