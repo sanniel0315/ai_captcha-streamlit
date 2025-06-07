@@ -815,7 +815,60 @@ def load_crnn_model():
         st.info("程式將在沒有AI功能的情況下運行")
         return None
 
+def load_uploaded_images(uploaded_files):
+    """載入上傳的圖片檔案"""
+    try:
+        if not uploaded_files:
+            st.error("❌ 沒有選擇檔案")
+            return False
+        
+        image_files_list = []
+        temp_dir = Path("./temp_uploads")
+        temp_dir.mkdir(exist_ok=True)
+        
+        for uploaded_file in uploaded_files:
+            # 檢查檔案類型
+            if uploaded_file.type not in ['image/png', 'image/jpeg', 'image/jpg']:
+                st.warning(f"⚠️ 跳過非圖片檔案: {uploaded_file.name}")
+                continue
+            
+            # 保存到臨時目錄
+            file_path = temp_dir / uploaded_file.name
+            with open(file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            # 添加到列表
+            image_files_list.append({
+                'name': uploaded_file.name,
+                'path': str(file_path),
+                'original_label': SimpleCaptchaCorrector.extract_label_from_filename(uploaded_file.name),
+                'is_uploaded': True
+            })
+        
+        if not image_files_list:
+            st.error("❌ 沒有有效的圖片檔案")
+            return False
+        
+        # 按檔名排序
+        image_files_list.sort(key=lambda x: x['name'])
+        
+        # 更新 session state
+        st.session_state.folder_images = image_files_list
+        st.session_state.current_index = 0
+        st.session_state.ai_predictions = {}
+        st.session_state.modified_count = 0
+        st.session_state.modified_files = set()
+        st.session_state.ai_accurate_count = 0
+        st.session_state.temp_label = ""
+        
+        st.success(f"✅ 成功載入 {len(image_files_list)} 張圖片")
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ 載入上傳檔案時異常: {e}")
+        return False
 def load_images_from_folder(folder_path: str):
+    """從資料夾載入圖片檔案"""
     try:
         resolved_path = Path(folder_path).resolve()
         
@@ -833,7 +886,8 @@ def load_images_from_folder(folder_path: str):
                 image_files_list.append({
                     'name': p.name, 
                     'path': str(p),
-                    'original_label': SimpleCaptchaCorrector.extract_label_from_filename(p.name)
+                    'original_label': SimpleCaptchaCorrector.extract_label_from_filename(p.name),
+                    'is_uploaded': False
                 })
         
         image_files_list.sort(key=lambda x: x['name'])
@@ -932,6 +986,7 @@ def navigate_to_image(new_index: int):
         st.session_state.list_page = required_page
 
 def save_current_file(new_label: str):
+    """保存當前檔案，支援上傳和本地檔案"""
     if not st.session_state.folder_images:
         return False
     
@@ -945,7 +1000,14 @@ def save_current_file(new_label: str):
     try:
         old_path = Path(current_file['path'])
         new_filename = SimpleCaptchaCorrector.generate_new_filename(new_label)
-        new_path = old_path.parent / new_filename
+        
+        # 判斷是否為上傳檔案
+        if current_file.get('is_uploaded', False):
+            # 上傳檔案：在同一個臨時目錄重命名
+            new_path = old_path.parent / new_filename
+        else:
+            # 本地檔案：在原目錄重命名
+            new_path = old_path.parent / new_filename
         
         if old_path.resolve() == new_path.resolve():
             st.info(f"ℹ️ 檔名未變更: {new_filename}")
@@ -962,10 +1024,12 @@ def save_current_file(new_label: str):
             original_label != new_label):
             st.session_state.ai_accurate_count += 1
         
+        # 更新檔案信息
         st.session_state.folder_images[current_idx] = {
             'name': new_filename,
             'path': str(new_path),
-            'original_label': new_label
+            'original_label': new_label,
+            'is_uploaded': current_file.get('is_uploaded', False)
         }
         
         if current_idx not in st.session_state.modified_files:
@@ -1072,8 +1136,8 @@ def render_compact_header(predictor):
     else:
         st.markdown('<div class="status-compact error">❌ 模型載入失敗</div>', unsafe_allow_html=True)
     
-    # 路徑控制 - 水平布局，適配 Streamlit Cloud
-    col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1, 1, 3, 1])
+    # 路徑控制 - 支援 Streamlit Cloud 和檔案上傳
+    col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1, 1, 2, 1])
     
     with col1:
         if st.button("📁專案", key="path_project", use_container_width=True):
@@ -1084,8 +1148,8 @@ def render_compact_header(predictor):
             st.session_state.folder_path = "./samples"
             safe_rerun()
     with col3:
-        if st.button("🎯測試", key="path_test", use_container_width=True):
-            st.session_state.folder_path = "./test_images"
+        if st.button("📤上傳", key="upload_files", use_container_width=True):
+            st.session_state.folder_path = "UPLOAD_MODE"
             safe_rerun()
     with col4:
         if st.button("🧪偵錯", key="path_debug", use_container_width=True):
@@ -1094,15 +1158,20 @@ def render_compact_header(predictor):
     with col5:
         folder_path = st.text_input(
             "路徑",
-            value=st.session_state.folder_path,
+            value=st.session_state.folder_path if st.session_state.folder_path != "UPLOAD_MODE" else "./massive_real_captchas",
             placeholder="PNG圖片資料夾路徑",
             key="folder_path_input",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            disabled=st.session_state.folder_path == "UPLOAD_MODE"
         )
-        st.session_state.folder_path = folder_path
+        if st.session_state.folder_path != "UPLOAD_MODE":
+            st.session_state.folder_path = folder_path
     with col6:
         if st.button("🚀載入", type="primary", key="load_images", use_container_width=True):
-            if folder_path.strip():
+            if st.session_state.folder_path == "UPLOAD_MODE":
+                # 觸發檔案上傳模式
+                pass
+            elif folder_path.strip():
                 if load_images_from_folder(folder_path.strip()):
                     if st.session_state.folder_images and predictor:
                         with st.spinner("🤖 AI識別中..."):
@@ -1110,6 +1179,31 @@ def render_compact_header(predictor):
                     safe_rerun()
             else:
                 st.error("❌ 請輸入路徑")
+    
+    # 檔案上傳區域
+    if st.session_state.folder_path == "UPLOAD_MODE":
+        st.markdown("### 📤 上傳驗證碼圖片")
+        uploaded_files = st.file_uploader(
+            "選擇 PNG 圖片檔案",
+            type=['png', 'jpg', 'jpeg'],
+            accept_multiple_files=True,
+            help="可以一次選擇多個圖片檔案上傳"
+        )
+        
+        if uploaded_files:
+            if st.button("✅ 處理上傳的圖片", type="primary", key="process_uploads"):
+                if load_uploaded_images(uploaded_files):
+                    if st.session_state.folder_images and predictor:
+                        with st.spinner("🤖 AI識別中..."):
+                            perform_batch_ai_prediction(predictor)
+                    safe_rerun()
+            
+            # 顯示上傳的檔案列表
+            st.write(f"已選擇 {len(uploaded_files)} 個檔案：")
+            for i, file in enumerate(uploaded_files[:5]):  # 只顯示前5個
+                st.write(f"• {file.name}")
+            if len(uploaded_files) > 5:
+                st.write(f"... 還有 {len(uploaded_files) - 5} 個檔案")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1128,25 +1222,60 @@ def render_maximized_work_area(predictor):
             box-shadow: 0 8px 25px rgba(0,0,0,0.2);
         ">
             <h2 style="color: #3498db; margin-bottom: 20px;">📂 開始使用 AI 驗證碼識別工具</h2>
-            <p style="font-size: 1.1rem; margin-bottom: 15px; color: #ecf0f1;">請選擇包含 PNG 驗證碼圖片的資料夾</p>
-            <p style="font-size: 0.9rem; color: #bdc3c7; margin-bottom: 25px;">
-                💡 使用上方的快速按鈕（桌面、下載、偵錯、測試）<br>
-                或手動輸入資料夾路徑，然後點擊「🚀載入」按鈕
-            </p>
+            <p style="font-size: 1.1rem; margin-bottom: 15px; color: #ecf0f1;">選擇圖片來源</p>
             <div style="
-                background: rgba(52, 152, 219, 0.1); 
-                border: 2px solid #3498db; 
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                max-width: 600px;
+                margin: 20px auto;
+            ">
+                <div style="
+                    background: rgba(52, 152, 219, 0.1); 
+                    border: 2px solid #3498db; 
+                    border-radius: 10px; 
+                    padding: 20px;
+                ">
+                    <h4 style="color: #3498db; margin-bottom: 10px;">🌐 雲端資料夾</h4>
+                    <p style="color: #ecf0f1; font-size: 0.9rem; line-height: 1.5;">
+                        使用預設的專案資料夾或輸入雲端路徑
+                    </p>
+                    <ul style="text-align: left; color: #bdc3c7; font-size: 0.85rem; margin: 10px 0;">
+                        <li>📁 專案資料夾</li>
+                        <li>📂 範例圖片</li>
+                        <li>🧪 偵錯資料</li>
+                    </ul>
+                </div>
+                <div style="
+                    background: rgba(39, 174, 96, 0.1); 
+                    border: 2px solid #27ae60; 
+                    border-radius: 10px; 
+                    padding: 20px;
+                ">
+                    <h4 style="color: #27ae60; margin-bottom: 10px;">📤 上傳檔案</h4>
+                    <p style="color: #ecf0f1; font-size: 0.9rem; line-height: 1.5;">
+                        從您的電腦上傳驗證碼圖片
+                    </p>
+                    <ul style="text-align: left; color: #bdc3c7; font-size: 0.85rem; margin: 10px 0;">
+                        <li>支援 PNG, JPG 格式</li>
+                        <li>可批量上傳多個檔案</li>
+                        <li>即時 AI 識別</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="
+                background: rgba(230, 126, 34, 0.1); 
+                border: 2px solid #e67e22; 
                 border-radius: 10px; 
                 padding: 20px; 
                 margin: 20px auto;
                 max-width: 600px;
             ">
-                <h4 style="color: #3498db; margin-bottom: 10px;">🎯 功能特色</h4>
+                <h4 style="color: #e67e22; margin-bottom: 10px;">🎯 功能特色</h4>
                 <ul style="text-align: left; color: #ecf0f1; line-height: 1.6;">
                     <li>🤖 <strong>AI自動識別</strong> - 使用CRNN模型識別4位大寫英文字母</li>
                     <li>📝 <strong>手動修正</strong> - 可以手動編輯AI識別結果</li>
                     <li>📊 <strong>即時統計</strong> - 顯示處理進度和AI準確率</li>
-                    <li>⚡ <strong>快速導航</strong> - 支援圖片間快速切換</li>
                     <li>💾 <strong>自動保存</strong> - 修正後自動重命名檔案</li>
                 </ul>
             </div>
